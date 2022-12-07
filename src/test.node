@@ -1,0 +1,7 @@
+node slfjsdfj (i1: bool; i2, i3: int) returns (o, o_ : int);
+var l1, l3: bool; l2: int;
+let
+	pat1 = expr1;
+	pat2 = expr2;
+	pat3 = expr3;
+tel
