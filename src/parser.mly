@@ -117,7 +117,8 @@ nodes:
   | node nodes  { $1 :: $2 };
 
 node:
-  NODE node_content { (* Flush known variables *) Hashtbl.clear defined_vars; $2 }
+  NODE node_content
+    { (* Flush known variables *) Hashtbl.clear defined_vars; $2 }
 
 node_content:
   IDENT LPAREN in_params RPAREN
@@ -127,15 +128,14 @@ node_content:
     { let node_name = $1 in
       let (t_in, e_in) = $3 in
       let (t_out, e_out) = $7 in
-      let n: Ast.t_node = 
+      let n: t_node = 
         { n_name       = node_name;
           n_inputs     = (t_in, e_in);
           n_outputs    = (t_out, e_out);
           n_local_vars = $10;
           n_equations  = $12;
           n_type = FTArr (t_in, t_out); } in
-      Hashtbl.add defined_nodes node_name n; n
-    } ;
+      Hashtbl.add defined_nodes node_name n; n };
 
 in_params:
   | /* empty */ { (FTList [], []) }
@@ -162,7 +162,7 @@ param:
   ident_comma_list COLON TYP
     { let typ = $3 in
       let idents = $1 in
-      Ast.(
+      (
       (FTList
         (List.map
           (fun t -> FTBase t) (Utils.list_repeat (List.length idents) typ)),
@@ -187,13 +187,16 @@ equations:
 
 equation:
   pattern EQUAL expr
-    { ($1, $3) }
-;
+    { let (t_patt, patt) = $1 in
+      let expr = $3 in
+      if type_exp expr = t_patt
+        then ((t_patt, patt), expr)
+        else raise (MyParsingError "The equation does not type check!") };
 
 pattern:
   | IDENT
     { let v = fetch_var $1 in
-    Ast.(FTList [type_var v], [v])
+    (FTList [type_var v], [v])
     }
   | LPAREN ident_comma_list_patt RPAREN { $2 };
 
@@ -220,21 +223,21 @@ expr:
   | expr BO_or expr                    { EBinOp (type_exp $1, BOp_or, $1, $3) }
   | expr BO_arrow expr                 { EBinOp (type_exp $1, BOp_arrow, $1, $3) }
   /* Comparison operators */
-  | expr EQUAL expr                    { EComp (Ast.FTBase Ast.TBool, COp_eq, $1, $3) }
-  | expr CMP_neq expr                  { EComp (Ast.FTBase Ast.TBool, COp_neq, $1, $3) }
-  | expr CMP_le expr                   { EComp (Ast.FTBase Ast.TBool, COp_le, $1, $3) }
-  | expr CMP_lt expr                   { EComp (Ast.FTBase Ast.TBool, COp_lt, $1, $3) }
-  | expr CMP_ge expr                   { EComp (Ast.FTBase Ast.TBool, COp_ge, $1, $3) }
-  | expr CMP_gt expr                   { EComp (Ast.FTBase Ast.TBool, COp_gt, $1, $3) }
+  | expr EQUAL expr                    { EComp (FTBase TBool, COp_eq, $1, $3) }
+  | expr CMP_neq expr                  { EComp (FTBase TBool, COp_neq, $1, $3) }
+  | expr CMP_le expr                   { EComp (FTBase TBool, COp_le, $1, $3) }
+  | expr CMP_lt expr                   { EComp (FTBase TBool, COp_lt, $1, $3) }
+  | expr CMP_ge expr                   { EComp (FTBase TBool, COp_ge, $1, $3) }
+  | expr CMP_gt expr                   { EComp (FTBase TBool, COp_gt, $1, $3) }
   /* Tertiary operators */
   | IF expr THEN expr ELSE expr        { ETriOp (type_exp $4, TOp_if, $2, $4, $6) }
   | TO_merge expr expr expr            { ETriOp (type_exp $4, TOp_merge, $2, $3, $4) }
   /* When is neither a binop (a * 'a -> 'a) or a comp ('a * 'a -> bool) */
   | expr WHEN expr                     { EWhen (type_exp $1, $1, $3) }
   /* Constants */
-  | CONST_INT                          { EConst (Ast.FTBase Ast.TInt, CInt $1) }
-  | CONST_BOOL                         { EConst (Ast.FTBase Ast.TBool, CBool $1) }
-  | CONST_REAL                         { EConst (Ast.FTBase Ast.TReal, CReal $1) }
+  | CONST_INT                          { EConst (FTBase TInt, CInt $1) }
+  | CONST_BOOL                         { EConst (FTBase TBool, CBool $1) }
+  | CONST_REAL                         { EConst (FTBase TReal, CReal $1) }
   /* Tuples */
   | LPAREN expr_comma_list RPAREN      { $2 }
   /* Applications */
@@ -243,7 +246,10 @@ expr:
         let node = fetch_node name in
         let args = $3 in
         match node.n_type with
-        | Ast.FTArr (_, t) -> EApp (t, fetch_node name, args)
+        | FTArr (tin, t) ->
+            if tin = type_exp args
+              then EApp (t, fetch_node name, args)
+              else raise (MyParsingError "The application does not type check!")
         | _ -> raise (MyParsingError "This exception should not have been raised from the dead.")
          }
 ;
@@ -253,13 +259,13 @@ expr_comma_list:
       { let e = $1 in
         match e with
         | ETuple _ -> e
-        | _ -> ETuple (Ast.FTList [type_exp e],  [e]) }
+        | _ -> ETuple (FTList [type_exp e],  [e]) }
   | expr COMMA expr_comma_list
       { let e = $1 in
         let le = $3 in
         match e, le with
-        | ETuple (Ast.FTList l1, t), ETuple (Ast.FTList l2, t') -> ETuple (Ast.FTList (l1@l2), t @ t')
-        | _, ETuple (Ast.FTList lt, t') -> ETuple (Ast.FTList ((type_exp e)::lt), e :: t')
+        | ETuple (FTList l1, t), ETuple (FTList l2, t') -> ETuple (FTList (l1@l2), t @ t')
+        | _, ETuple (FTList lt, t') -> ETuple (FTList ((type_exp e)::lt), e :: t')
         | _, _ -> raise (MyParsingError "This exception should not have been \
                                           raised.") }
 ;
