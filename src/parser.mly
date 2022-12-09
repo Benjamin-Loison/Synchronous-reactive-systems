@@ -107,6 +107,20 @@
       then ETriOp (t2, op, e1, e2, e3)
       else raise (MyParsingError (error_msg, current_location()))
 
+  let rec debug_type_pp fmt = function
+  | FTBase TBool   -> Format.fprintf fmt "bool"
+  | FTBase TReal   -> Format.fprintf fmt "real"
+  | FTBase TInt    -> Format.fprintf fmt "int"
+  | FTArr (t1, t2) -> Format.fprintf fmt "( %a -> %a )"
+                        debug_type_pp t1 debug_type_pp t2
+  | FTList []      -> ()
+  | FTList (h :: []) -> Format.fprintf fmt "l%a" debug_type_pp h
+  | FTList (h :: h' :: t) ->
+      Format.fprintf fmt "l%a; %a" debug_type_pp h debug_type_pp (FTList (h' :: t))
+
+  let debug_type =
+    Format.printf "Type: %a\n" debug_type_pp
+
 %}
 
 %token EOF
@@ -239,11 +253,14 @@ equations:
 equation:
   pattern EQUAL expr
     { let (t_patt, patt) = $1 in
-      let expr = $3 in
-      if type_exp expr = t_patt
+      let expr = $3 in let texpr = type_exp expr in
+      if (match texpr with
+      | FTList _ -> texpr = t_patt
+      | _        -> FTList [texpr] = t_patt)
         then ((t_patt, patt), expr)
-        else raise (MyParsingError ("The equation does not type check!",
-                    current_location())) };
+        else (debug_type t_patt; debug_type (type_exp expr);
+          raise (MyParsingError ("The equation does not type check!",
+                    current_location()))) };
 
 pattern:
   | IDENT
