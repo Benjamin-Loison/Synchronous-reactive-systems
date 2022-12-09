@@ -14,6 +14,7 @@
       ("returns", RETURNS);
       ("var", VAR);
       ("int", TYP(Ast.TInt));
+      ("real", TYP(Ast.TReal));
       ("bool", TYP(Ast.TBool));
       ("<=", CMP_le);
       (">=", CMP_ge);

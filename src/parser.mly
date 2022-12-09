@@ -118,6 +118,7 @@
 %token COLON
 %token BOOL
 %token INT
+%token REAL
 %token LET
 %token TEL
 %token NODE
