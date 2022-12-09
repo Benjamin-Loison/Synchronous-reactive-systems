@@ -33,6 +33,13 @@ let pp_expression =
       | _ -> raise (MyTypeError "This exception should not have been raised.")
     in
     match expression with
+    | EFby (_, e1, e2) ->
+        begin
+          Format.fprintf fmt "\t\t\t%sFBY\n%a\t\t\tFBY\n%a"
+            prefix
+            (pp_expression_aux (upd_prefix prefix)) e1
+            (pp_expression_aux (upd_prefix prefix)) e2
+        end
     | EWhen (_, e1, e2) ->
         begin
           Format.fprintf fmt "\t\t\t%sWHEN\n%a\t\t\tWHEN\n%a"
