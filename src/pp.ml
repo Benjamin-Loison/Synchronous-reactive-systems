@@ -9,15 +9,15 @@ let pp_loc fmt (start, stop) =
 
 let rec pp_varlist fmt : t_varlist -> unit = function
   | (FTList [], []) -> ()
-  | (FTList (FTBase TInt :: _),  IVar h :: []) -> Format.fprintf fmt  "%s" h
-  | (FTList (FTBase TReal :: _), RVar h :: []) -> Format.fprintf fmt  "%s" h
-  | (FTList (FTBase TBool :: _), BVar h :: []) -> Format.fprintf fmt  "%s" h
+  | (FTList (FTBase TInt :: _),  IVar h :: []) -> Format.fprintf fmt  "%s: int" h
+  | (FTList (FTBase TReal :: _), RVar h :: []) -> Format.fprintf fmt  "%s: real" h
+  | (FTList (FTBase TBool :: _), BVar h :: []) -> Format.fprintf fmt  "%s: bool" h
   | (FTList (FTBase TInt :: tl),  (IVar h) :: h' :: l) ->
-      Format.fprintf fmt  "%s, %a" h pp_varlist (FTList tl, (h' :: l))
+      Format.fprintf fmt  "%s: int, %a" h pp_varlist (FTList tl, (h' :: l))
   | (FTList (FTBase TBool :: tl), (BVar h) :: h' :: l) ->
-      Format.fprintf fmt  "%s, %a" h pp_varlist (FTList tl, (h' :: l))
+      Format.fprintf fmt  "%s: bool, %a" h pp_varlist (FTList tl, (h' :: l))
   | (FTList (FTBase TReal :: tl), (RVar h) :: h' :: l) ->
-      Format.fprintf fmt  "%s, %a" h pp_varlist (FTList tl, (h' :: l))
+      Format.fprintf fmt  "%s: real, %a" h pp_varlist (FTList tl, (h' :: l))
   | _ -> raise (MyTypeError "This exception should not have beed be raised.")
 
 let pp_expression =
