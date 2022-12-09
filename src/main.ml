@@ -19,11 +19,11 @@ let print_verbose v s =
   *  - The equations are well typed
   *  - The output is set
   *)
-let check_well_formedness (a: p_prog) = Some a
-let check_dependencies (a: p_prog) = Some a
-let simplify_prog (a: p_prog) = Some a
+let check_well_formedness (a: t_nodelist) = Some a
+let check_dependencies (a: t_nodelist) = Some a
+let simplify_prog (a: t_nodelist) = Some a
 
-let run verbose debug (passes: (p_prog -> p_prog option) list)
+let run verbose debug (passes: (t_nodelist -> t_nodelist option) list)
   = verbose "kjlksjf"
 
 let _ =
@@ -53,7 +53,7 @@ let _ =
   let print_debug = print_debug !verbose in
 
   (** Definition of the passes table *)
-  let passes_table : (string,  p_prog -> p_prog option) Hashtbl.t = Hashtbl.create 100 in
+  let passes_table : (string,  t_nodelist -> t_nodelist option) Hashtbl.t = Hashtbl.create 100 in
   List.iter (fun (s, k) -> Hashtbl.add passes_table s k)
     [
       ("check_form", check_well_formedness);
@@ -73,7 +73,7 @@ let _ =
     with Lexer.Lexing_error s ->
       exit_error (Format.sprintf "Code d'erreur:\n\t%s\n\n" s); exit 0 in
 
-  if !ppast then Format.printf "%a" Pp.pp_prog ast
+  if !ppast then Format.printf "%a" Pp.pp_ast ast
   else
     let passes = List.map (fun (pass: string) ->
       match Hashtbl.find_opt passes_table pass with

@@ -1,5 +1,11 @@
 open Ast
 
+let pp_ident fmt (s: ident): unit = Format.fprintf fmt "%s" s
+
+let pp_ast fmt (nodes: t_nodelist) = ()
+
+(*open Ast
+
 let pp_loc fmt (start, stop) =
   Lexing.(
     Format.fprintf fmt "%s: <l: %d, c: %d> -- <l: %d, c: %d>"
@@ -127,4 +133,4 @@ let pp_prog fmt prog =
     (List.length prog)
     pp_nodes prog
 
-
+*)
