@@ -60,6 +60,53 @@
     | RVar _, (FTList tl, l) -> (FTList (FTBase TReal :: tl), v :: l)
     | _ -> raise (MyParsingError ("This exception should not have been raised.",
                   current_location()))
+
+  let monop_condition expr typ_constraint error_msg res =
+    if type_exp expr = typ_constraint
+      then res
+      else raise (MyParsingError (error_msg, current_location()))
+
+  let monop_neg_condition expr typ_constraint error_msg res =
+    if type_exp expr <> typ_constraint
+      then res
+      else raise (MyParsingError (error_msg, current_location()))
+
+  let make_binop_nonbool e1 e2 op error_msg =
+    let t1 = type_exp e1 in let t2 = type_exp e2 in
+    match t1 with
+    | FTBase _ -> (** e1 and e2 should be nunmbers here.*)
+      if t1 = t2 && t1 <> FTBase TBool
+        then EBinOp (t1, op, e1, e2)
+        else raise (MyParsingError (error_msg, current_location()))
+    | _ -> raise (MyParsingError (error_msg, current_location()))
+
+  let make_binop_bool e1 e2 op error_msg =
+    let t1 = type_exp e1 in let t2 = type_exp e2 in
+    if t1 = t2 && t1 = FTBase TBool
+      then EBinOp (t1, op, e1, e2)
+      else raise (MyParsingError (error_msg, current_location()))
+
+  let make_comp e1 e2 op error_msg =
+    let t1 = type_exp e1 in let t2 = type_exp e2 in
+    if t1 = t2
+      then EComp (FTBase TBool, op, e1, e2)
+      else raise (MyParsingError (error_msg, current_location()))
+
+  let make_comp_nonbool e1 e2 op error_msg =
+    let t1 = type_exp e1 in let t2 = type_exp e2 in
+    match t1 with
+    | FTBase _ -> (** e1 and e2 should be numbers here. *)
+      if t1 = t2 && t1 <> FTBase TBool
+        then EComp (FTBase TBool, op, e1, e2)
+        else raise (MyParsingError (error_msg, current_location()))
+    | _ -> raise (MyParsingError (error_msg, current_location()))
+
+  let make_tertiary e1 e2 e3 op error_msg =
+    let t1 = type_exp e1 in let t2 = type_exp e2 in let t3 = type_exp e3 in
+    if t2 = t3 && t1 = FTBase TBool
+      then ETriOp (t2, op, e1, e2, e3)
+      else raise (MyParsingError (error_msg, current_location()))
+
 %}
 
 %token EOF
@@ -214,84 +261,39 @@ expr:
   | IDENT                              { let v  = fetch_var $1 in EVar (type_var v, v) }
   /* Unary operators */
   | MO_not expr
-      { let t = type_exp $2 in
-        if t = FTBase TBool
-          then EMonOp (t, MOp_not, $2)
-          else raise (MyParsingError ("You cannot negate a non-boolean \
-            expression.",
-            current_location())) }
+      { monop_condition $2 (FTBase TBool)
+          "You cannot negate a non-boolean expression."
+          (EMonOp (type_exp $2, MOp_not, $2)) }
   | MO_pre expr                        { EMonOp (type_exp $2, MOp_pre, $2) }
   | MINUS expr
-      { let t = type_exp $2 in
-        if t = FTBase TBool
-          then raise (MyParsingError ("You cannot take the opposite of a \
-            boolean expression.",
-            current_location()))
-          else EMonOp (t, MOp_minus, $2) }
+      { monop_neg_condition $2 (FTBase TBool)
+          "You cannot take the opposite of a boolean expression."
+          (EMonOp (type_exp $2, MOp_minus, $2)) }
   | PLUS expr
-      { let t = type_exp $2 in
-        if t = FTBase TBool
-          then raise (MyParsingError ("You cannot take the plus of a boolean \
-            expression.",
-            current_location()))
-          else $2 }
+      { monop_neg_condition $2 (FTBase TBool)
+          "You cannot take the plus of a boolean expression." $2 }
   /* Binary operators */
   | expr PLUS expr
-      { let e1 = $1 in let t1 = type_exp e1 in
-        let e2 = $3 in let t2 = type_exp e2 in
-        if t1 = t2 && t1 <> FTBase TBool
-          then  EBinOp (t1, BOp_add, $1, $3)
-          else raise (MyParsingError ("You should know better; addition hates \
-            booleans",
-            current_location())) }
+      { make_binop_nonbool $1 $3 BOp_add
+          "You should know better; addition hates booleans" }
   | expr MINUS expr
-      { let e1 = $1 in let t1 = type_exp e1 in
-        let e2 = $3 in let t2 = type_exp e2 in
-        if t1 = t2 && t1 <> FTBase TBool
-          then  EBinOp (t1, BOp_sub, $1, $3)
-          else raise (MyParsingError ("You should know better; subtraction \
-            hates booleans",
-            current_location())) }
+      { make_binop_nonbool $1 $3 BOp_sub
+          "You should know better; subtraction hates booleans" }
   | expr BO_mul expr
-      { let e1 = $1 in let t1 = type_exp e1 in
-        let e2 = $3 in let t2 = type_exp e2 in
-        if t1 = t2 && t1 <> FTBase TBool
-          then  EBinOp (t1, BOp_mul, $1, $3)
-          else raise (MyParsingError ("You should know better; multiplication \
-            hates booleans",
-            current_location())) }
+      { make_binop_nonbool $1 $3 BOp_mul
+          "You should know better; multiplication hates booleans" }
   | expr BO_div expr
-      { let e1 = $1 in let t1 = type_exp e1 in
-        let e2 = $3 in let t2 = type_exp e2 in
-        if t1 = t2 && t1 <> FTBase TBool
-          then  EBinOp (t1, BOp_div, $1, $3)
-          else raise (MyParsingError ("You should know better; division hates \
-            booleans",
-            current_location())) }
+      { make_binop_nonbool $1 $3 BOp_div
+          "You should know better; division hates booleans" }
   | expr BO_mod expr
-      { let e1 = $1 in let t1 = type_exp e1 in
-        let e2 = $3 in let t2 = type_exp e2 in
-        if t1 = t2 && t1 <> FTBase TBool
-          then  EBinOp (t1, BOp_mod, $1, $3)
-          else raise (MyParsingError ("You should know better; modulo hates \
-            booleans",
-            current_location())) }
+      { make_binop_nonbool $1 $3 BOp_mod
+          "You should know better; modulo hates booleans" }
   | expr BO_and expr
-      { let e1 = $1 in let t1 = type_exp e1 in
-        let e2 = $3 in let t2 = type_exp e2 in
-        if t1 = t2 && t1 = FTBase TBool
-          then  EBinOp (t1, BOp_and, $1, $3)
-          else raise (MyParsingError ("You should know better; conjunction \
-            hates numbers",
-            current_location())) }
+      { make_binop_bool $1 $3 BOp_and
+          "You should know better; conjunction hates numbers" }
   | expr BO_or expr
-      { let e1 = $1 in let t1 = type_exp e1 in
-        let e2 = $3 in let t2 = type_exp e2 in
-        if t1 = t2 && t1 = FTBase TBool
-          then  EBinOp (t1, BOp_or, $1, $3)
-          else raise (MyParsingError ("You should know better; disjunction \
-            hates numbers",
-            current_location())) }
+      { make_binop_bool $1 $3 BOp_or
+          "You should know better; disjunction hates numbers" }
   | expr BO_arrow expr
       { let e1 = $1 in let t1 = type_exp e1 in
         let e2 = $3 in let t2 = type_exp e2 in
@@ -302,72 +304,30 @@ expr:
   /* Binary operators, syntactic sugar */
   | expr BO_fby expr
       { (* e fby e' ==> e -> (pre e') *)
-        let e = $1 in let e' = $3 in
-        let te = type_exp e in
-        if te = type_exp e'
-          then EBinOp (te, BOp_arrow, e, (EMonOp (te, MOp_pre, e')))
+        let e1 = $1 in let t1 = type_exp e1 in
+        let e2 = $3 in let t2 = type_exp e2 in
+        if t1 = t2
+          then EBinOp (t1, BOp_arrow, e1, (EMonOp (t1, MOp_pre, e2)))
           else raise (MyParsingError ("The fby does not type-check!",
                       current_location())) }
   /* Comparison operators */
   | expr EQUAL expr
-      { let e1 = $1 in let t1 = type_exp e1 in
-        let e2 = $3 in let t2 = type_exp e2 in
-        if t1 = t2
-          then EComp (FTBase TBool, COp_eq, $1, $3)
-          else raise (MyParsingError ("The equality does not type-check!",
-                      current_location())) }
+      { make_comp $1 $3 COp_eq "The equality does not type-check!" }
   | expr CMP_neq expr
-      { let e1 = $1 in let t1 = type_exp e1 in
-        let e2 = $3 in let t2 = type_exp e2 in
-        if t1 = t2
-          then EComp (FTBase TBool, COp_neq, $1, $3)
-          else raise (MyParsingError ("The inequality does not type-check!",
-                      current_location())) }
+      { make_comp $1 $3 COp_neq "The inquality does not type-check!" }
   | expr CMP_le expr
-      { let e1 = $1 in let t1 = type_exp e1 in
-        let e2 = $3 in let t2 = type_exp e2 in
-        if t1 = t2 && t1 <> FTBase TBool
-          then EComp (FTBase TBool, COp_le, $1, $3)
-          else raise (MyParsingError ("The comparison does not type-check!",
-                      current_location())) }
+      { make_comp_nonbool $1 $3 COp_le "The comparison <= does not type-check!" }
   | expr CMP_lt expr
-      { let e1 = $1 in let t1 = type_exp e1 in
-        let e2 = $3 in let t2 = type_exp e2 in
-        if t1 = t2 && t1 <> FTBase TBool
-          then EComp (FTBase TBool, COp_lt, $1, $3)
-          else raise (MyParsingError ("The comparison does not type-check!",
-                      current_location())) }
+      { make_comp_nonbool $1 $3 COp_lt "The comparison < does not type-check!" }
   | expr CMP_ge expr
-      { let e1 = $1 in let t1 = type_exp e1 in
-        let e2 = $3 in let t2 = type_exp e2 in
-        if t1 = t2 && t1 <> FTBase TBool
-          then EComp (FTBase TBool, COp_ge, $1, $3)
-          else raise (MyParsingError ("The comparison does not type-check!",
-                      current_location())) }
+      { make_comp_nonbool $1 $3 COp_ge "The comparison >= does not type-check!" }
   | expr CMP_gt expr
-      { let e1 = $1 in let t1 = type_exp e1 in
-        let e2 = $3 in let t2 = type_exp e2 in
-        if t1 = t2 && t1 <> FTBase TBool
-          then EComp (FTBase TBool, COp_gt, $1, $3)
-          else raise (MyParsingError ("The comparison does not type-check!",
-                      current_location())) }
+      { make_comp_nonbool $1 $3 COp_gt "The comparison > does not type-check!" }
   /* Tertiary operators */
   | IF expr THEN expr ELSE expr
-      { let e1 = $2 in let t1 = type_exp e1 in
-        let e2 = $4 in let t2 = type_exp e2 in
-        let e3 = $6 in let t3 = type_exp e3 in
-        if t2 = t3 && t1 = FTBase TBool
-          then ETriOp (t2, TOp_if, e1, e2, e3)
-          else raise (MyParsingError ("The if-then-else does not type-check!",
-                      current_location())) }
+      { make_tertiary $2 $4 $6 TOp_if "The if-then-else does not type-check!" }
   | TO_merge expr expr expr
-      { let e1 = $2 in let t1 = type_exp e1 in
-        let e2 = $3 in let t2 = type_exp e2 in
-        let e3 = $4 in let t3 = type_exp e3 in
-        if t2 = t3 && t1 = FTBase TBool
-          then ETriOp (t2, TOp_merge, e1, e2, e3)
-          else raise (MyParsingError ("The if-then-else does not type-check!",
-                      current_location())) }
+      { make_tertiary $2 $3 $4 TOp_merge "The merge does not type-check!" }
   /* When is neither a binop (a * 'a -> 'a) or a comp ('a * 'a -> bool) */
   | expr WHEN expr
       { let e1 = $1 in let t1 = type_exp e1 in
