@@ -14,7 +14,7 @@ let print_verbose v s =
   *  - for any applications of the form (n, arg1, ..., argn)
   *    + n exists
   *    + n waits n arguments
-  *    + arg1, ..., argn sont bien formés
+  *    + arg1, ..., argn are well-typed
   *  - The expressions are well-typed
   *  - The equations are well typed
   *  - The output is set
@@ -24,7 +24,7 @@ let check_dependencies (a: t_nodelist) = Some a
 let simplify_prog (a: t_nodelist) = Some a
 
 let run verbose debug (passes: (t_nodelist -> t_nodelist option) list)
-  = verbose "kjlksjf"
+  = verbose "RUN_PLACEHOLDER"
 
 let _ =
   (** Usage and argument parsing. *)
@@ -61,7 +61,7 @@ let _ =
       ("simplify_prog", simplify_prog);
     ];
 
-  (** Main functionnalyty below *)
+  (** Main functionality below *)
   print_verbose "Parsing the source file...";
   let ast =
     try
@@ -72,7 +72,7 @@ let _ =
       end
     with
     | Lexer.Lexing_error s ->
-        (exit_error (Format.sprintf "Code d'erreur:\n\t%s\n\n" s); exit 0)
+        (exit_error (Format.sprintf "Error code:\n\t%s\n\n" s); exit 0)
     | Utils.MyParsingError (s, l) ->
       begin
         Format.printf "Syntax error at %a: %s\n\n"

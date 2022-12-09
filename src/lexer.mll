@@ -63,5 +63,5 @@ rule token = parse
   | '%'             { BO_mod }
   | "->"            { BO_arrow }
   | eof             { EOF }
-  | _               { raise (Lexing_error (Format.sprintf "Erruer à la vue de %s" (lexeme lexbuf)))}
+  | _               { raise (Lexing_error (Format.sprintf "Error when seeing %s" (lexeme lexbuf)))}
 
