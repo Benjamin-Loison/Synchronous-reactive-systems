@@ -35,6 +35,7 @@
     | ETriOp (full_ty , _ , _ , _ , _) -> full_ty
     | EComp  (full_ty , _ , _ , _) -> full_ty
     | EWhen  (full_ty , _ , _) -> full_ty
+    | EFby   (full_ty , _ , _) -> full_ty
     | EConst (full_ty , _) -> full_ty
     | ETuple (full_ty , _) -> full_ty
     | EApp   (full_ty , _ , _) -> full_ty
@@ -95,6 +96,7 @@
 %token TO_merge
 
 %token WHEN
+%token FBY
 
 %token IF
 %token THEN
@@ -234,6 +236,7 @@ expr:
   | TO_merge expr expr expr            { ETriOp (type_exp $4, TOp_merge, $2, $3, $4) }
   /* When is neither a binop (a * 'a -> 'a) or a comp ('a * 'a -> bool) */
   | expr WHEN expr                     { EWhen (type_exp $1, $1, $3) }
+  | expr FBY expr                      { EFby (type_exp $1, $1, $3) }
   /* Constants */
   | CONST_INT                          { EConst (FTBase TInt, CInt $1) }
   | CONST_BOOL                         { EConst (FTBase TBool, CBool $1) }
