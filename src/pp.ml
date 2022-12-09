@@ -8,45 +8,49 @@ let pp_loc fmt (start, stop) =
       stop.pos_lnum stop.pos_cnum)
 
 let rec pp_varlist fmt : t_varlist -> unit = function
-  | [] -> ()
-  | IVar h :: [] -> Format.fprintf fmt  "%s" h
-  | RVar h :: [] -> Format.fprintf fmt  "%s" h
-  | BVar h :: [] -> Format.fprintf fmt  "%s" h
-  | (IVar h) :: h' :: l -> Format.fprintf fmt  "%s, %a" h pp_varlist (h' :: l)
-  | (BVar h) :: h' :: l -> Format.fprintf fmt  "%s, %a" h pp_varlist (h' :: l)
-  | (RVar h) :: h' :: l -> Format.fprintf fmt  "%s, %a" h pp_varlist (h' :: l)
+  | (FTList [], []) -> ()
+  | (FTList (FTBase TInt :: _),  IVar h :: []) -> Format.fprintf fmt  "%s" h
+  | (FTList (FTBase TReal :: _), RVar h :: []) -> Format.fprintf fmt  "%s" h
+  | (FTList (FTBase TBool :: _), BVar h :: []) -> Format.fprintf fmt  "%s" h
+  | (FTList (FTBase TInt :: tl),  (IVar h) :: h' :: l) ->
+      Format.fprintf fmt  "%s, %a" h pp_varlist (FTList tl, (h' :: l))
+  | (FTList (FTBase TBool :: tl), (BVar h) :: h' :: l) ->
+      Format.fprintf fmt  "%s, %a" h pp_varlist (FTList tl, (h' :: l))
+  | (FTList (FTBase TReal :: tl), (RVar h) :: h' :: l) ->
+      Format.fprintf fmt  "%s, %a" h pp_varlist (FTList tl, (h' :: l))
+  | _ -> raise (MyTypeError "This exception should not have beed be raised.")
 
 let pp_expression =
   let upd_prefix s = s ^ " |  " in
   let rec pp_expression_aux prefix fmt expression =
     let rec pp_expression_list prefix fmt exprs =
       match exprs with
-      | ETuple([]) -> ()
-      | ETuple (expr :: exprs) ->
+      | ETuple(FTList [], []) -> ()
+      | ETuple (FTList (_ :: tt), expr :: exprs) ->
           Format.fprintf fmt "%a%a"
             (pp_expression_aux (prefix^" |> ")) expr
-            (pp_expression_list prefix) (ETuple exprs)
+            (pp_expression_list prefix) (ETuple (FTList tt, exprs))
       | _ -> raise (MyTypeError "This exception should not have been raised.")
     in
     match expression with
-    | EWhen (e1, e2) ->
+    | EWhen (_, e1, e2) ->
         begin
           Format.fprintf fmt "\t\t\t%sWHEN\n%a\t\t\tWHEN\n%a"
             prefix
             (pp_expression_aux (upd_prefix prefix)) e1
             (pp_expression_aux (upd_prefix prefix)) e2
         end
-    | EConst c ->
+    | EConst (_, c) ->
         begin match c with
         | CBool true ->  Format.fprintf fmt "\t\t\t%s<true : bool>\n" prefix
         | CBool false ->  Format.fprintf fmt "\t\t\t%s<false : bool>\n" prefix
         | CInt i ->      Format.fprintf fmt "\t\t\t%s<%5d: int>\n" prefix i
         | CReal r ->      Format.fprintf fmt "\t\t\t%s<%5f: float>\n" prefix r
         end
-    | EVar (IVar v) -> Format.fprintf fmt "\t\t\t%s<int var %s>\n" prefix v
-    | EVar (BVar v) -> Format.fprintf fmt "\t\t\t%s<bool var %s>\n" prefix v
-    | EVar (RVar v) -> Format.fprintf fmt "\t\t\t%s<real var %s>\n" prefix v
-    | EMonOp (mop, arg) ->
+    | EVar (_, IVar v) -> Format.fprintf fmt "\t\t\t%s<int var %s>\n" prefix v
+    | EVar (_, BVar v) -> Format.fprintf fmt "\t\t\t%s<bool var %s>\n" prefix v
+    | EVar (_, RVar v) -> Format.fprintf fmt "\t\t\t%s<real var %s>\n" prefix v
+    | EMonOp (_, mop, arg) ->
         begin match mop with
         | MOp_not ->
             Format.fprintf fmt "\t\t\t%s ¬ \n%a" prefix
@@ -58,7 +62,7 @@ let pp_expression =
             Format.fprintf fmt "\t\t\t%spre\n%a" prefix
               (pp_expression_aux (upd_prefix prefix)) arg
         end
-    | EBinOp (bop, arg, arg') ->
+    | EBinOp (_, bop, arg, arg') ->
         begin
         let s = match bop with
         | BOp_add -> " + " | BOp_sub -> " - "
@@ -68,7 +72,7 @@ let pp_expression =
           (pp_expression_aux (upd_prefix prefix)) arg
           (pp_expression_aux (upd_prefix prefix)) arg'
         end
-    | EComp (cop, arg, arg') ->
+    | EComp (_, cop, arg, arg') ->
         begin
         let s = match cop with
         | COp_eq  -> "== "
@@ -79,7 +83,7 @@ let pp_expression =
           (pp_expression_aux (upd_prefix prefix)) arg
           (pp_expression_aux (upd_prefix prefix)) arg'
         end
-    | ETriOp (top, arg, arg', arg'') ->
+    | ETriOp (_, top, arg, arg', arg'') ->
         begin match top with
         | TOp_if ->
             Format.fprintf fmt "\t\t\t%sIF\n%a\t\t\tTHEN\n%a\t\t\tELSE\n%a"
@@ -94,13 +98,13 @@ let pp_expression =
               (pp_expression_aux (upd_prefix prefix)) arg'
               (pp_expression_aux (upd_prefix prefix)) arg''
         end
-    | EApp (f, args)  ->
+    | EApp (_, f, args)  ->
         Format.fprintf fmt "\t\t\t%sApp %s\n%a"
           prefix f.n_name
           (pp_expression_list prefix) args
-    | ETuple args ->
+    | ETuple _ ->
         Format.fprintf fmt "\t\t\t%sTuple\n%a" prefix
-          (pp_expression_list prefix) (ETuple args);
+          (pp_expression_list prefix) expression;
     in
   pp_expression_aux ""
 
@@ -112,25 +116,13 @@ let rec pp_equations fmt: t_eqlist -> unit = function
         pp_expression expr
         pp_equations eqs
 
-let rec pp_node_vars fmt = function
-  | [] -> ()
-  | BVar n :: vars ->
-      Format.fprintf fmt "\t\tVariable <name: %10s,\ttype: bool>\n%a"
-        n pp_node_vars vars
-  | IVar n :: vars ->
-      Format.fprintf fmt "\t\tVariable <name: %10s,\ttype: int>\n%a"
-        n pp_node_vars vars
-  | RVar n :: vars ->
-      Format.fprintf fmt "\t\tVariable <name: %10s,\ttype: real>\n%a"
-        n pp_node_vars vars
-
 let pp_node fmt node =
   Format.fprintf fmt "\t∗ Nom du nœud : %s\n\t  Inputs:\n%a\n\t  Outputs:\n%a\n\t\
     \ \ Local variables:\n%a\n\t  Equations:\n%a\n"
                  node.n_name
-    pp_node_vars node.n_inputs
-    pp_node_vars node.n_outputs
-    pp_node_vars node.n_local_vars
+    pp_varlist node.n_inputs
+    pp_varlist node.n_outputs
+    pp_varlist node.n_local_vars
     pp_equations node.n_equations
 
 let rec pp_nodes fmt nodes =

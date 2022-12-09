@@ -14,13 +14,32 @@
                 ("The node "^n^" does not exist."))
     | Some node -> node
 
-  let fetch_var (n: Ast.ident) =
+  let fetch_var (n: Ast.ident) : Ast.t_var =
     match Hashtbl.find_opt defined_vars n with
     | None ->
         raise (MyParsingError
                 ("The var "^n^" does not exist."))
     | Some var -> var
 
+  let concat_varlist  (t1, e1) (t2, e2) =
+    Ast.(
+    match t1, t2 with
+    | FTList lt1, FTList lt2 -> (FTList (lt1 @ lt2), e1@e2)
+    | _ ->
+      raise (MyParsingError "This exception should not have been raised."))
+
+  let make_ident (v : Ast.t_var) : Ast.t_varlist =
+    match v with
+    | IVar _ -> Ast.(FTList [FTBase TInt ], [v])
+    | BVar _ -> Ast.(FTList [FTBase TBool], [v])
+    | RVar _ -> Ast.(FTList [FTBase TReal], [v])
+
+  let add_ident (v : Ast.t_var) (l: Ast.t_varlist) : Ast.t_varlist =
+    match v, l with
+    | IVar _, (FTList tl, l) -> Ast.(FTList (FTBase TInt  :: tl), v :: l)
+    | BVar _, (FTList tl, l) -> Ast.(FTList (FTBase TBool :: tl), v :: l)
+    | RVar _, (FTList tl, l) -> Ast.(FTList (FTBase TReal :: tl), v :: l)
+    | _ -> raise (MyParsingError "This exception should not have been raised.")
 %}
 
 %token EOF
@@ -88,34 +107,37 @@ node_content:
   local_params
   LET equations TEL
     { let node_name = $1 in
+      let (t_in, e_in) = $3 in
+      let (t_out, e_out) = $7 in
       let n: Ast.t_node = 
         { n_name       = node_name;
-          n_inputs     = $3;
-          n_outputs    = $7;
+          n_inputs     = (t_in, e_in);
+          n_outputs    = (t_out, e_out);
           n_local_vars = $10;
-          n_equations  = $12; } in
+          n_equations  = $12;
+          n_type = FTArr (t_in, t_out); } in
       Hashtbl.add defined_nodes node_name n; n
     } ;
 
 in_params:
-  | /* empty */ { [] }
+  | /* empty */ { (FTList [], []) }
   | param_list  { $1 }
 ;
 
 out_params: param_list { $1 } ;
 
 local_params:
-  | /* empty */        { [] }
+  | /* empty */        { (FTList [], []) }
   | VAR param_list_semicol { $2 }
 ;
 
 param_list_semicol:
   | param SEMICOL { $1 }
-  | param SEMICOL param_list_semicol { $1 @ $3 }
+  | param SEMICOL param_list_semicol { concat_varlist $1 $3 }
 
 param_list:
   | param                    { $1 }
-  | param SEMICOL param_list { $1 @ $3 }
+  | param SEMICOL param_list { concat_varlist $1 $3 }
 ;
 
 param:
@@ -123,13 +145,16 @@ param:
     { let typ = $3 in
       let idents = $1 in
       Ast.(
+      (FTList
+        (List.map
+          (fun t -> FTBase t) (Utils.list_repeat (List.length idents) typ)),
       match typ with
       | TBool ->
-          List.map (fun s -> Hashtbl.add defined_vars s (BVar s); BVar s) idents
+        List.map (fun s -> Hashtbl.add defined_vars s (BVar s); BVar s) idents
       | TReal ->
-          List.map (fun s -> Hashtbl.add defined_vars s (RVar s); RVar s) idents
+        List.map (fun s -> Hashtbl.add defined_vars s (RVar s); RVar s) idents
       | TInt  ->
-          List.map (fun s -> Hashtbl.add defined_vars s (IVar s); IVar s) idents) }
+        List.map (fun s -> Hashtbl.add defined_vars s (IVar s); IVar s) idents)) }
 ;
 
 ident_comma_list:
@@ -148,12 +173,17 @@ equation:
 ;
 
 pattern:
-  | IDENT                           { [fetch_var $1] }
+  | IDENT
+    { let v = fetch_var $1 in
+      match v with
+      | IVar _ -> Ast.(FTList [FTBase TInt ], [v])
+      | BVar _ -> Ast.(FTList [FTBase TBool], [v])
+      | RVar _ -> Ast.(FTList [FTBase TReal], [v]) }
   | LPAREN ident_comma_list_patt RPAREN { $2 };
 
 ident_comma_list_patt:
-  | IDENT { [fetch_var $1] }
-  | IDENT COMMA ident_comma_list_patt { (fetch_var $1) :: $3 }
+  | IDENT { make_ident (fetch_var $1) }
+  | IDENT COMMA ident_comma_list_patt { add_ident (fetch_var $1) $3 }
 
 expr:
   /* Note: EQUAL does not follow the nomenclature CMP_, ... */
