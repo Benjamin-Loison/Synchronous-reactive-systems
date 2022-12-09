@@ -70,8 +70,15 @@ let _ =
       let res = Parser.main Lexer.token (Lexing.from_channel inchan) in
       close_in inchan; res
       end
-    with Lexer.Lexing_error s ->
-      exit_error (Format.sprintf "Code d'erreur:\n\t%s\n\n" s); exit 0 in
+    with
+    | Lexer.Lexing_error s ->
+        (exit_error (Format.sprintf "Code d'erreur:\n\t%s\n\n" s); exit 0)
+    | Utils.MyParsingError (s, l) ->
+      begin
+        Format.printf "Syntax error at %a: %s\n\n"
+          Pp.pp_loc l s;
+        exit 0
+      end in
 
   if !ppast then Format.printf "%a" Pp.pp_ast ast
   else

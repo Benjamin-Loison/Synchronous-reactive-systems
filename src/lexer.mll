@@ -32,6 +32,7 @@
       ("pre", MO_pre);
       ("true", CONST_BOOL(true));
       ("false", CONST_BOOL(false));
+      ("fby", BO_fby);
       ];
     fun s ->
       try Hashtbl.find h s with Not_found -> IDENT s

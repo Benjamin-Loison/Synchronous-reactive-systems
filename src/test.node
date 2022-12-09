@@ -1,7 +1,5 @@
 node diagonal_int (i: int) returns (o1, o2 : int);
 let
-	o1 = if true then i else 0;
-	o2 = i;
 	(o1, o2) = (i, i);
 tel
 
