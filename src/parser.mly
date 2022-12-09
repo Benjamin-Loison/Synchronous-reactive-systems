@@ -1,44 +1,62 @@
 %{
+  open Ast
   exception MyParsingError of string
 
   let current_location () = symbol_start_pos (), symbol_end_pos ()
 
-  let defined_nodes : (Ast.ident, Ast.t_node) Hashtbl.t = Hashtbl.create 100
+  let defined_nodes : (ident, t_node) Hashtbl.t = Hashtbl.create 100
 
-  let defined_vars : (Ast.ident, Ast.t_var) Hashtbl.t = Hashtbl.create 100
+  let defined_vars : (ident, t_var) Hashtbl.t = Hashtbl.create 100
 
-  let fetch_node (n: Ast.ident) =
+  let fetch_node (n: ident) =
     match Hashtbl.find_opt defined_nodes n with
     | None ->
         raise (MyParsingError
                 ("The node "^n^" does not exist."))
     | Some node -> node
 
-  let fetch_var (n: Ast.ident) : Ast.t_var =
+  let fetch_var (n: ident) : t_var =
     match Hashtbl.find_opt defined_vars n with
     | None ->
         raise (MyParsingError
                 ("The var "^n^" does not exist."))
     | Some var -> var
 
+  let type_var (v: t_var) =
+      match v with
+      | IVar _ -> FTBase TInt
+      | BVar _ -> FTBase TBool
+      | RVar _ -> FTBase TReal
+
+  let type_exp : t_expression -> full_ty = function
+    | EVar   (full_ty , _) -> full_ty
+    | EMonOp (full_ty , _ , _) -> full_ty
+    | EBinOp (full_ty , _ , _ , _) -> full_ty
+    | ETriOp (full_ty , _ , _ , _ , _) -> full_ty
+    | EComp  (full_ty , _ , _ , _) -> full_ty
+    | EWhen  (full_ty , _ , _) -> full_ty
+    | EConst (full_ty , _) -> full_ty
+    | ETuple (full_ty , _) -> full_ty
+    | EApp   (full_ty , _ , _) -> full_ty
+
   let concat_varlist  (t1, e1) (t2, e2) =
-    Ast.(
+    (
     match t1, t2 with
     | FTList lt1, FTList lt2 -> (FTList (lt1 @ lt2), e1@e2)
     | _ ->
       raise (MyParsingError "This exception should not have been raised."))
 
-  let make_ident (v : Ast.t_var) : Ast.t_varlist =
+  let make_ident (v : t_var) : t_varlist =
     match v with
-    | IVar _ -> Ast.(FTList [FTBase TInt ], [v])
-    | BVar _ -> Ast.(FTList [FTBase TBool], [v])
-    | RVar _ -> Ast.(FTList [FTBase TReal], [v])
+    | IVar _ -> (FTList [FTBase TInt ], [v])
+    | BVar _ -> (FTList [FTBase TBool], [v])
+    | RVar _ -> (FTList [FTBase TReal], [v])
 
-  let add_ident (v : Ast.t_var) (l: Ast.t_varlist) : Ast.t_varlist =
+  let add_ident (v : t_var) (l: t_varlist) : t_varlist =
     match v, l with
-    | IVar _, (FTList tl, l) -> Ast.(FTList (FTBase TInt  :: tl), v :: l)
-    | BVar _, (FTList tl, l) -> Ast.(FTList (FTBase TBool :: tl), v :: l)
-    | RVar _, (FTList tl, l) -> Ast.(FTList (FTBase TReal :: tl), v :: l)
+    | IVar _, (FTList tl, l) -> (FTList (FTBase TInt  :: tl), v :: l)
+    | BVar _, (FTList tl, l) -> (FTList (FTBase TBool :: tl), v :: l)
+    | RVar _, (FTList tl, l) -> (FTList (FTBase TReal :: tl), v :: l)
     | _ -> raise (MyParsingError "This exception should not have been raised.")
 %}
 
@@ -175,10 +193,8 @@ equation:
 pattern:
   | IDENT
     { let v = fetch_var $1 in
-      match v with
-      | IVar _ -> Ast.(FTList [FTBase TInt ], [v])
-      | BVar _ -> Ast.(FTList [FTBase TBool], [v])
-      | RVar _ -> Ast.(FTList [FTBase TReal], [v]) }
+    Ast.(FTList [type_var v], [v])
+    }
   | LPAREN ident_comma_list_patt RPAREN { $2 };
 
 ident_comma_list_patt:
@@ -188,44 +204,48 @@ ident_comma_list_patt:
 expr:
   /* Note: EQUAL does not follow the nomenclature CMP_, ... */
   | LPAREN expr RPAREN                 { $2 }
-  | IDENT                              { EVar (fetch_var $1) }
+  | IDENT                              { let v  = fetch_var $1 in EVar (type_var v, v) }
   /* Unary operators */
-  | MO_not expr                        { EMonOp (MOp_not, $2) }
-  | MO_pre expr                        { EMonOp (MOp_pre, $2) }
-  | MINUS expr                         { EMonOp (MOp_minus, $2) }
+  | MO_not expr                        { EMonOp (type_exp $2, MOp_not, $2) }
+  | MO_pre expr                        { EMonOp (type_exp $2, MOp_pre, $2) }
+  | MINUS expr                         { EMonOp (type_exp $2, MOp_minus, $2) }
   | PLUS expr                          { $2 }
   /* Binary operators */
-  | expr PLUS expr                     { EBinOp (BOp_add, $1, $3) }
-  | expr MINUS expr                    { EBinOp (BOp_sub, $1, $3) }
-  | expr BO_mul expr                   { EBinOp (BOp_mul, $1, $3) }
-  | expr BO_div expr                   { EBinOp (BOp_div, $1, $3) }
-  | expr BO_mod expr                   { EBinOp (BOp_mod, $1, $3) }
-  | expr BO_and expr                   { EBinOp (BOp_and, $1, $3) }
-  | expr BO_or expr                    { EBinOp (BOp_or, $1, $3) }
-  | expr BO_arrow expr                 { EBinOp (BOp_arrow, $1, $3) }
+  | expr PLUS expr                     { EBinOp (type_exp $1, BOp_add, $1, $3) }
+  | expr MINUS expr                    { EBinOp (type_exp $1, BOp_sub, $1, $3) }
+  | expr BO_mul expr                   { EBinOp (type_exp $1, BOp_mul, $1, $3) }
+  | expr BO_div expr                   { EBinOp (type_exp $1, BOp_div, $1, $3) }
+  | expr BO_mod expr                   { EBinOp (type_exp $1, BOp_mod, $1, $3) }
+  | expr BO_and expr                   { EBinOp (type_exp $1, BOp_and, $1, $3) }
+  | expr BO_or expr                    { EBinOp (type_exp $1, BOp_or, $1, $3) }
+  | expr BO_arrow expr                 { EBinOp (type_exp $1, BOp_arrow, $1, $3) }
   /* Comparison operators */
-  | expr EQUAL expr                    { EComp (COp_eq, $1, $3) }
-  | expr CMP_neq expr                  { EComp (COp_neq, $1, $3) }
-  | expr CMP_le expr                   { EComp (COp_le, $1, $3) }
-  | expr CMP_lt expr                   { EComp (COp_lt, $1, $3) }
-  | expr CMP_ge expr                   { EComp (COp_ge, $1, $3) }
-  | expr CMP_gt expr                   { EComp (COp_gt, $1, $3) }
+  | expr EQUAL expr                    { EComp (Ast.FTBase Ast.TBool, COp_eq, $1, $3) }
+  | expr CMP_neq expr                  { EComp (Ast.FTBase Ast.TBool, COp_neq, $1, $3) }
+  | expr CMP_le expr                   { EComp (Ast.FTBase Ast.TBool, COp_le, $1, $3) }
+  | expr CMP_lt expr                   { EComp (Ast.FTBase Ast.TBool, COp_lt, $1, $3) }
+  | expr CMP_ge expr                   { EComp (Ast.FTBase Ast.TBool, COp_ge, $1, $3) }
+  | expr CMP_gt expr                   { EComp (Ast.FTBase Ast.TBool, COp_gt, $1, $3) }
   /* Tertiary operators */
-  | IF expr THEN expr ELSE expr        { ETriOp (TOp_if, $2, $4, $6) }
-  | TO_merge expr expr expr            { ETriOp (TOp_merge, $2, $3, $4) }
+  | IF expr THEN expr ELSE expr        { ETriOp (type_exp $4, TOp_if, $2, $4, $6) }
+  | TO_merge expr expr expr            { ETriOp (type_exp $4, TOp_merge, $2, $3, $4) }
   /* When is neither a binop (a * 'a -> 'a) or a comp ('a * 'a -> bool) */
-  | WHEN expr expr                     { EWhen ($2, $3) }
+  | expr WHEN expr                     { EWhen (type_exp $1, $1, $3) }
   /* Constants */
-  | CONST_INT                          { EConst (CInt $1) }
-  | CONST_BOOL                         { EConst (CBool $1) }
-  | CONST_REAL                         { EConst (CReal $1) }
+  | CONST_INT                          { EConst (Ast.FTBase Ast.TInt, CInt $1) }
+  | CONST_BOOL                         { EConst (Ast.FTBase Ast.TBool, CBool $1) }
+  | CONST_REAL                         { EConst (Ast.FTBase Ast.TReal, CReal $1) }
   /* Tuples */
   | LPAREN expr_comma_list RPAREN      { $2 }
   /* Applications */
   | IDENT LPAREN expr_comma_list RPAREN
       { let name = $1 in
+        let node = fetch_node name in
         let args = $3 in
-        EApp (fetch_node name, args) }
+        match node.n_type with
+        | Ast.FTArr (_, t) -> EApp (t, fetch_node name, args)
+        | _ -> raise (MyParsingError "This exception should not have been raised from the dead.")
+         }
 ;
 
 expr_comma_list:
@@ -233,13 +253,13 @@ expr_comma_list:
       { let e = $1 in
         match e with
         | ETuple _ -> e
-        | _ -> ETuple [e] }
+        | _ -> ETuple (Ast.FTList [type_exp e],  [e]) }
   | expr COMMA expr_comma_list
       { let e = $1 in
         let le = $3 in
         match e, le with
-        | ETuple t, ETuple t' -> ETuple (t @ t')
-        | _, ETuple t' -> ETuple (e :: t')
+        | ETuple (Ast.FTList l1, t), ETuple (Ast.FTList l2, t') -> ETuple (Ast.FTList (l1@l2), t @ t')
+        | _, ETuple (Ast.FTList lt, t') -> ETuple (Ast.FTList ((type_exp e)::lt), e :: t')
         | _, _ -> raise (MyParsingError "This exception should not have been \
                                           raised.") }
 ;
