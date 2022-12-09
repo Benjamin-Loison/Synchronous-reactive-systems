@@ -11,14 +11,14 @@
     match Hashtbl.find_opt defined_nodes n with
     | None ->
         raise (MyParsingError
-                ("The node %s does not exist."))
+                ("The node "^n^" does not exist."))
     | Some node -> node
 
   let fetch_var (n: Ast.ident) =
     match Hashtbl.find_opt defined_vars n with
     | None ->
         raise (MyParsingError
-                ("The var %s does not exist."))
+                ("The var "^n^" does not exist."))
     | Some var -> var
 
 %}
@@ -87,11 +87,14 @@ node_content:
   RETURNS LPAREN out_params RPAREN SEMICOL
   local_params
   LET equations TEL
-    { { n_name       = $1;
-        n_inputs     = $3;
-        n_outputs    = $7;
-        n_local_vars = $10;
-        n_equations  = $12; }
+    { let node_name = $1 in
+      let n: Ast.t_node = 
+        { n_name       = node_name;
+          n_inputs     = $3;
+          n_outputs    = $7;
+          n_local_vars = $10;
+          n_equations  = $12; } in
+      Hashtbl.add defined_nodes node_name n; n
     } ;
 
 in_params:
@@ -107,7 +110,8 @@ local_params:
 ;
 
 param_list_semicol:
-  | param_list SEMICOL { $1 }
+  | param SEMICOL { $1 }
+  | param SEMICOL param_list_semicol { $1 @ $3 }
 
 param_list:
   | param                    { $1 }
@@ -135,7 +139,7 @@ ident_comma_list:
 equations:
   | /* empty */ { [] }
   | equation SEMICOL equations
-      { $1 :: $3 }
+      {  $1 :: $3 }
 ;
 
 equation:
