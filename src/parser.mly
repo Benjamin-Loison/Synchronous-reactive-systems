@@ -187,9 +187,9 @@ node:
 
 node_content:
   IDENT LPAREN in_params RPAREN
-  RETURNS LPAREN out_params RPAREN SEMICOL
+  RETURNS LPAREN out_params RPAREN OPTIONAL_SEMICOL
   local_params
-  LET equations TEL
+  LET equations TEL OPTIONAL_SEMICOL
     { let node_name = $1 in
       let (t_in, e_in) = $3 in
       let (t_out, e_out) = $7 in
@@ -201,6 +201,11 @@ node_content:
           n_equations  = $12;
           n_type = FTArr (t_in, t_out); } in
       Hashtbl.add defined_nodes node_name n; n };
+
+OPTIONAL_SEMICOL:
+  | /* empty */ {}
+  | SEMICOL {}
+;
 
 in_params:
   | /* empty */ { (FTList [], []) }

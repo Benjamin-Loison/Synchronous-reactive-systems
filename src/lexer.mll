@@ -62,6 +62,11 @@ rule token = parse
   | '/'             { BO_div }
   | '%'             { BO_mod }
   | "->"            { BO_arrow }
+  | "--"            { read_single_line_comment lexbuf }
   | eof             { EOF }
   | _               { raise (Lexing_error (Format.sprintf "Error when seeing %s" (lexeme lexbuf)))}
 
+and read_single_line_comment = parse
+  | '\n' { token lexbuf }
+  | eof { EOF }
+  | _ { read_single_line_comment lexbuf }
