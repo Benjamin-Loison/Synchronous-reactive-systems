@@ -65,9 +65,11 @@ let pp_expression =
     let rec pp_expression_list prefix fmt exprs =
       match exprs with
       | ETuple([], []) -> ()
+      (* TODO: assignment (in addition to the current app call support) *)
       | ETuple (_ :: tt, expr :: exprs) ->
-          Format.fprintf fmt "%a%a"
-            (pp_expression_aux (prefix^" |> ")) expr
+          Format.fprintf fmt "%a%s%a"
+            (pp_expression_aux (prefix)) expr
+            (if (List.length tt > 0) then ", " else "")
             (pp_expression_list prefix) (ETuple (tt, exprs))
       | _ -> raise (MyTypeError "This exception should not have been raised.")
     in
@@ -142,7 +144,6 @@ let pp_expression =
               (pp_expression_aux prefix) arg'
               (pp_expression_aux prefix) arg''
         end
-    (* TODO *)
     | EApp (_, f, args)  ->
         Format.fprintf fmt "%s%s(%a)"
           prefix f.n_name
@@ -153,7 +154,6 @@ let pp_expression =
     in
   pp_expression_aux ""
 
-(* should add a prefix for indentation *)
 let rec pp_equations fmt: t_eqlist -> unit = function
   | [] -> ()
   | (patt, expr) :: eqs ->
