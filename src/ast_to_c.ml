@@ -40,11 +40,11 @@ let rec pp_decvarlist fmt : t_varlist -> unit = function
   | ([TReal],  RVar h :: []) -> Format.fprintf fmt  "float %s;" h
   | ([TBool],  BVar h :: []) -> Format.fprintf fmt  "bool %s;" h
   | (TInt :: tl,  IVar h :: h' :: l) ->
-      Format.fprintf fmt  "%s: int, %a" h pp_decvarlist (tl, h' :: l)
+      Format.fprintf fmt  "int %s;\n\t%a" h pp_decvarlist (tl, h' :: l)
   | (TBool :: tl, BVar h :: h' :: l) ->
-      Format.fprintf fmt  "%s: bool, %a" h pp_decvarlist (tl, h' :: l)
+      Format.fprintf fmt  "bool %s;\n\t%a" h pp_decvarlist (tl, h' :: l)
   | (TReal :: tl, RVar h :: h' :: l) ->
-      Format.fprintf fmt  "%s: real, %a" h pp_decvarlist (tl, h' :: l)
+      Format.fprintf fmt  "float %s;\n\t%a" h pp_decvarlist (tl, h' :: l)
   | _ -> raise (MyTypeError "This exception should not have beed be raised.")
 
 let rec pp_retvarlist fmt : t_varlist -> unit = function
@@ -164,7 +164,7 @@ let rec pp_equations fmt: t_eqlist -> unit = function
 
 (* TODO: manage general outputs *)
 let pp_node fmt node =
-  Format.fprintf fmt "%a %s(%a)\n{\n\t%a\n\t%a\n%a\n\treturn %a;\n}\n"
+  Format.fprintf fmt "%a %s(%a)\n{\n\t%a\n\n\t%a\n\n%a\n\treturn %a;\n}\n"
     pp_retvarlist (node.n_outputs)
                  node.n_name
     (* could avoid newlines if they aren't used to seperate statements *)
