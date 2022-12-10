@@ -7,44 +7,46 @@ let pp_loc fmt (start, stop) =
       start.pos_lnum start.pos_cnum
       stop.pos_lnum stop.pos_cnum)
 
-(* could use an argument instead of redefining these functions, if possible *)
-let rec pp_varlist fmt : t_varlist -> unit = function
-  | ([], []) -> ()
-  | ([TInt] ,  IVar h :: []) -> Format.fprintf fmt  "%s" h
-  | ([TReal],  RVar h :: []) -> Format.fprintf fmt  "%s" h
-  | ([TBool],  BVar h :: []) -> Format.fprintf fmt  "%s" h
-  | (TInt :: tl,  IVar h :: h' :: l) ->
-      Format.fprintf fmt  "%s, %a" h pp_varlist (tl, h' :: l)
-  | (TBool :: tl, BVar h :: h' :: l) ->
-      Format.fprintf fmt  "%s, %a" h pp_varlist (tl, h' :: l)
-  | (TReal :: tl, RVar h :: h' :: l) ->
-      Format.fprintf fmt  "%s, %a" h pp_varlist (tl, h' :: l)
-  | _ -> raise (MyTypeError "This exception should not have beed be raised.")
+type var_list_delim =
+  | Base
+  | Arg
+  | Dec
 
-let rec pp_argvarlist fmt : t_varlist -> unit = function
+let rec pp_varlist var_list_delim fmt : t_varlist -> unit = function
   | ([], []) -> ()
-  | ([TInt] ,  IVar h :: []) -> Format.fprintf fmt  "int %s" h
-  | ([TReal],  RVar h :: []) -> Format.fprintf fmt  "float %s" h
-  | ([TBool],  BVar h :: []) -> Format.fprintf fmt  "bool %s" h
+  | ([TInt] ,  IVar h :: []) -> let s = "" in Format.fprintf fmt (
+      match var_list_delim with
+          | Base -> "%s"
+          | Arg -> "int %s"
+          | Dec -> "int %s;") h
+  | ([TReal],  RVar h :: []) -> Format.fprintf fmt (
+      match var_list_delim with
+          | Base -> "%s"
+          | Arg -> "float %s"
+          | Dec -> "float %s;") h
+  | ([TBool],  BVar h :: []) -> Format.fprintf fmt (
+      match var_list_delim with
+          | Base -> "%s"
+          | Arg -> "bool %s"
+          | Dec -> "bool %s;") h
   | (TInt :: tl,  IVar h :: h' :: l) ->
-      Format.fprintf fmt  "int %s, %a" h pp_argvarlist (tl, h' :: l)
+      Format.fprintf fmt (
+          match var_list_delim with
+              | Base -> "%s, %a"
+              | Arg -> "int %s, %a"
+              | Dec -> "int %s;\n\t%a") h (pp_varlist var_list_delim) (tl, h' :: l)
   | (TBool :: tl, BVar h :: h' :: l) ->
-      Format.fprintf fmt  "bool %s, %a" h pp_argvarlist (tl, h' :: l)
+      Format.fprintf fmt (
+          match var_list_delim with
+              | Base -> "%s, %a"
+              | Arg -> "bool %s, %a"
+              | Dec -> "bool %s;\n\t%a") h (pp_varlist var_list_delim) (tl, h' :: l)
   | (TReal :: tl, RVar h :: h' :: l) ->
-      Format.fprintf fmt  "real %s, %a" h pp_argvarlist (tl, h' :: l)
-  | _ -> raise (MyTypeError "This exception should not have beed be raised.")
-
-let rec pp_decvarlist fmt : t_varlist -> unit = function
-  | ([], []) -> ()
-  | ([TInt] ,  IVar h :: []) -> Format.fprintf fmt  "int %s;" h
-  | ([TReal],  RVar h :: []) -> Format.fprintf fmt  "float %s;" h
-  | ([TBool],  BVar h :: []) -> Format.fprintf fmt  "bool %s;" h
-  | (TInt :: tl,  IVar h :: h' :: l) ->
-      Format.fprintf fmt  "int %s;\n\t%a" h pp_decvarlist (tl, h' :: l)
-  | (TBool :: tl, BVar h :: h' :: l) ->
-      Format.fprintf fmt  "bool %s;\n\t%a" h pp_decvarlist (tl, h' :: l)
-  | (TReal :: tl, RVar h :: h' :: l) ->
-      Format.fprintf fmt  "float %s;\n\t%a" h pp_decvarlist (tl, h' :: l)
+      Format.fprintf fmt (
+          match var_list_delim with
+              | Base -> "%s, %a"
+              | Arg -> "float %s, %a"
+              | Dec -> "float %s;\n\t%a") h (pp_varlist var_list_delim) (tl, h' :: l)
   | _ -> raise (MyTypeError "This exception should not have beed be raised.")
 
 let rec pp_retvarlist fmt : t_varlist -> unit = function
@@ -92,8 +94,8 @@ let pp_expression =
     | EConst (_, c) ->
         begin match c with
         | CBool b ->  Format.fprintf fmt "%s%s" prefix (Bool.to_string b)
-        | CInt i ->      Format.fprintf fmt "%s%i" prefix i
-        | CReal r ->      Format.fprintf fmt "%s%f" prefix r
+        | CInt i ->   Format.fprintf fmt "%s%i" prefix i
+        | CReal r ->  Format.fprintf fmt "%s%f" prefix r
         end
     | EVar (_, IVar v) -> Format.fprintf fmt "%s%s" prefix v
     | EVar (_, BVar v) -> Format.fprintf fmt "%s%s" prefix v
@@ -158,7 +160,7 @@ let rec pp_equations fmt: t_eqlist -> unit = function
   | [] -> ()
   | (patt, expr) :: eqs ->
       Format.fprintf fmt "\t%a = %a;\n%a"
-        pp_varlist patt
+        (pp_varlist Base) patt
         pp_expression expr
         pp_equations eqs
 
@@ -166,13 +168,13 @@ let rec pp_equations fmt: t_eqlist -> unit = function
 let pp_node fmt node =
   Format.fprintf fmt "%a %s(%a)\n{\n\t%a\n\n\t%a\n\n%a\n\treturn %a;\n}\n"
     pp_retvarlist (node.n_outputs)
-                 node.n_name
+    node.n_name
     (* could avoid newlines if they aren't used to seperate statements *)
-    pp_argvarlist node.n_inputs
-    pp_decvarlist node.n_local_vars
-    pp_decvarlist node.n_outputs
+    (pp_varlist Arg) node.n_inputs
+    (pp_varlist Dec) node.n_local_vars
+    (pp_varlist Dec) node.n_outputs
     pp_equations node.n_equations
-    pp_varlist node.n_outputs
+    (pp_varlist Base) node.n_outputs
 
 let rec pp_nodes fmt nodes =
   match nodes with
