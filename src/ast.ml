@@ -47,6 +47,7 @@ type t_expression =
   | ETriOp of full_ty * triop * t_expression * t_expression * t_expression
   | EComp  of full_ty * compop * t_expression * t_expression
   | EWhen  of full_ty * t_expression * t_expression
+  | EReset of full_ty * t_expression * t_expression
   | EConst of full_ty * const
   | ETuple of full_ty * (t_expression list)
   | EApp   of full_ty * t_node * t_expression

@@ -40,6 +40,13 @@ let pp_expression =
             (pp_expression_aux (upd_prefix prefix)) e1
             (pp_expression_aux (upd_prefix prefix)) e2
         end
+    | EReset (_, e1, e2) ->
+        begin
+          Format.fprintf fmt "\t\t\t%sRESET\n%a\t\t\tRESET\n%a"
+            prefix
+            (pp_expression_aux (upd_prefix prefix)) e1
+            (pp_expression_aux (upd_prefix prefix)) e2
+        end
     | EConst (_, c) ->
         begin match c with
         | CBool true ->  Format.fprintf fmt "\t\t\t%s<true : bool>\n" prefix

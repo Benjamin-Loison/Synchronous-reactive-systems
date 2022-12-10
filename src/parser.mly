@@ -35,6 +35,7 @@
     | ETriOp (full_ty , _ , _ , _ , _) -> full_ty
     | EComp  (full_ty , _ , _ , _) -> full_ty
     | EWhen  (full_ty , _ , _) -> full_ty
+    | EReset (full_ty , _ , _) -> full_ty
     | EConst (full_ty , _) -> full_ty
     | ETuple (full_ty , _) -> full_ty
     | EApp   (full_ty , _ , _) -> full_ty
@@ -160,6 +161,7 @@
 %token TO_merge
 
 %token WHEN
+%token RESET
 
 %token IF
 %token THEN
@@ -358,6 +360,13 @@ expr:
         if t2 = FTBase TBool
          then EWhen (type_exp $1, $1, $3)
          else raise (MyParsingError ("The when does not type-check!",
+                    current_location())) }
+  | expr RESET expr
+      { let e1 = $1 in let t1 = type_exp e1 in
+        let e2 = $3 in let t2 = type_exp e2 in
+        if t2 = FTBase TBool
+         then EReset (type_exp $1, $1, $3)
+         else raise (MyParsingError ("The reset does not type-check!",
                     current_location())) }
   /* Constants */
   | CONST_INT                          { EConst (FTBase TInt, CInt $1) }
