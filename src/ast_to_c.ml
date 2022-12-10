@@ -125,8 +125,7 @@ let pp_expression =
         begin
         let s = match cop with
         | COp_eq  -> " == "
-        | COp_neq -> " ≠ "
-        (* TODO: check <= and >= *)
+        | COp_neq -> " != "
         | COp_le  -> " <= " | COp_lt  -> " < "
         | COp_ge  -> " >= " | COp_gt  -> " > " in
         Format.fprintf fmt "%s%a%s%a" prefix 

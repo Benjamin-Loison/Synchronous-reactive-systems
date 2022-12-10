@@ -16,15 +16,10 @@
       ("int", TYP(Ast.TInt));
       ("real", TYP(Ast.TReal));
       ("bool", TYP(Ast.TBool));
-      ("<=", CMP_le);
-      (">=", CMP_ge);
       ("not", MO_not);
       ("mod", BO_mod);
-      ("&&", BO_and);
       ("and", BO_and);
-      ("||", BO_or);
       ("or", BO_or);
-      ("<>", CMP_neq);
       ("if", IF);
       ("then", THEN);
       ("else", ELSE);
@@ -56,7 +51,10 @@ rule token = parse
   | ';'             { SEMICOL }
   | ':'             { COLON }
   | '<'             { CMP_lt }
+  | "<="            { CMP_le }
   | '>'             { CMP_gt }
+  | ">="            { CMP_ge }
+  | "<>"            { CMP_neq }
   | '+'             { PLUS }
   | '-'             { MINUS }
   | '*'             { BO_mul }
