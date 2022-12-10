@@ -131,7 +131,7 @@ let rec pp_equations fmt: t_eqlist -> unit = function
         pp_equations eqs
 
 let pp_node fmt node =
-  Format.fprintf fmt "\t∗ Nom du nœud : %s\n\t  Inputs:\n%a\n\t  Outputs:\n%a\n\t\
+  Format.fprintf fmt "\t∗ Node name : %s\n\t  Inputs:\n%a\n\t  Outputs:\n%a\n\t\
     \ \ Local variables:\n%a\n\t  Equations:\n%a\n"
                  node.n_name
     pp_varlist node.n_inputs
@@ -147,7 +147,7 @@ let rec pp_nodes fmt nodes =
 
 let pp_ast fmt prog =
   Format.fprintf fmt
-    "Le programme est composé de %d nœud(s), listés ci-dessous :\n%a"
+    "The program is made of %d node(s), listed below :\n%a"
     (List.length prog)
     pp_nodes prog
 
