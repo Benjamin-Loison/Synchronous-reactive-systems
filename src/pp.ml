@@ -8,16 +8,16 @@ let pp_loc fmt (start, stop) =
       stop.pos_lnum stop.pos_cnum)
 
 let rec pp_varlist fmt : t_varlist -> unit = function
-  | (FTList [], []) -> ()
-  | (FTList (FTBase TInt :: _),  IVar h :: []) -> Format.fprintf fmt  "%s: int" h
-  | (FTList (FTBase TReal :: _), RVar h :: []) -> Format.fprintf fmt  "%s: real" h
-  | (FTList (FTBase TBool :: _), BVar h :: []) -> Format.fprintf fmt  "%s: bool" h
-  | (FTList (FTBase TInt :: tl),  (IVar h) :: h' :: l) ->
-      Format.fprintf fmt  "%s: int, %a" h pp_varlist (FTList tl, (h' :: l))
-  | (FTList (FTBase TBool :: tl), (BVar h) :: h' :: l) ->
-      Format.fprintf fmt  "%s: bool, %a" h pp_varlist (FTList tl, (h' :: l))
-  | (FTList (FTBase TReal :: tl), (RVar h) :: h' :: l) ->
-      Format.fprintf fmt  "%s: real, %a" h pp_varlist (FTList tl, (h' :: l))
+  | ([], []) -> ()
+  | ([TInt] ,  IVar h :: []) -> Format.fprintf fmt  "%s: int" h
+  | ([TReal], RVar h :: []) -> Format.fprintf fmt  "%s: real" h
+  | ([TBool], BVar h :: []) -> Format.fprintf fmt  "%s: bool" h
+  | (TInt :: tl,  IVar h :: h' :: l) ->
+      Format.fprintf fmt  "%s: int, %a"  h pp_varlist (tl, h' :: l)
+  | (TBool :: tl, BVar h :: h' :: l) ->
+      Format.fprintf fmt  "%s: bool, %a" h pp_varlist (tl, h' :: l)
+  | (TReal :: tl, RVar h :: h' :: l) ->
+      Format.fprintf fmt  "%s: real, %a" h pp_varlist (tl, h' :: l)
   | _ -> raise (MyTypeError "This exception should not have beed be raised.")
 
 let pp_expression =
@@ -25,11 +25,11 @@ let pp_expression =
   let rec pp_expression_aux prefix fmt expression =
     let rec pp_expression_list prefix fmt exprs =
       match exprs with
-      | ETuple(FTList [], []) -> ()
-      | ETuple (FTList (_ :: tt), expr :: exprs) ->
+      | ETuple([], []) -> ()
+      | ETuple (_ :: tt, expr :: exprs) ->
           Format.fprintf fmt "%a%a"
             (pp_expression_aux (prefix^" |> ")) expr
-            (pp_expression_list prefix) (ETuple (FTList tt, exprs))
+            (pp_expression_list prefix) (ETuple (tt, exprs))
       | _ -> raise (MyTypeError "This exception should not have been raised.")
     in
     match expression with

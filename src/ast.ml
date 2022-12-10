@@ -35,10 +35,7 @@ type t_var =
   | IVar of ident
   | RVar of ident
 
-type full_ty =
-  | FTArr of full_ty * full_ty
-  | FTList of full_ty list
-  | FTBase of base_ty
+type full_ty = base_ty list
 
 type t_expression =
   | EVar   of full_ty * t_var
@@ -65,7 +62,8 @@ and t_node =
     n_outputs: t_varlist;
     n_local_vars: t_varlist;
     n_equations: t_eqlist;
-    n_type : full_ty;
+    n_inputs_type : full_ty;
+    n_outputs_type : full_ty;
   }
 
 type t_nodelist = t_node list

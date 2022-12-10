@@ -24,9 +24,9 @@
 
   let type_var (v: t_var) =
       match v with
-      | IVar _ -> FTBase TInt
-      | BVar _ -> FTBase TBool
-      | RVar _ -> FTBase TReal
+      | IVar _ -> [TInt]
+      | BVar _ -> [TBool]
+      | RVar _ -> [TReal]
 
   let type_exp : t_expression -> full_ty = function
     | EVar   (full_ty , _) -> full_ty
@@ -40,27 +40,19 @@
     | ETuple (full_ty , _) -> full_ty
     | EApp   (full_ty , _ , _) -> full_ty
 
-  let concat_varlist  (t1, e1) (t2, e2) =
-    (
-    match t1, t2 with
-    | FTList lt1, FTList lt2 -> (FTList (lt1 @ lt2), e1@e2)
-    | _ ->
-      raise (MyParsingError ("This exception should not have been raised.",
-              current_location())))
+  let concat_varlist  (t1, e1) (t2, e2) = (t1 @ t2, e1 @ e2)
 
   let make_ident (v : t_var) : t_varlist =
     match v with
-    | IVar _ -> (FTList [FTBase TInt ], [v])
-    | BVar _ -> (FTList [FTBase TBool], [v])
-    | RVar _ -> (FTList [FTBase TReal], [v])
+    | IVar _ -> [TInt ], [v]
+    | BVar _ -> [TBool], [v]
+    | RVar _ -> [TReal], [v]
 
   let add_ident (v : t_var) (l: t_varlist) : t_varlist =
     match v, l with
-    | IVar _, (FTList tl, l) -> (FTList (FTBase TInt  :: tl), v :: l)
-    | BVar _, (FTList tl, l) -> (FTList (FTBase TBool :: tl), v :: l)
-    | RVar _, (FTList tl, l) -> (FTList (FTBase TReal :: tl), v :: l)
-    | _ -> raise (MyParsingError ("This exception should not have been raised.",
-                  current_location()))
+    | IVar _, (tl, l) -> ((TInt  :: tl), v :: l)
+    | BVar _, (tl, l) -> ((TBool :: tl), v :: l)
+    | RVar _, (tl, l) -> ((TReal :: tl), v :: l)
 
   let monop_condition expr typ_constraint error_msg res =
     if type_exp expr = typ_constraint
@@ -74,50 +66,52 @@
 
   let make_binop_nonbool e1 e2 op error_msg =
     let t1 = type_exp e1 in let t2 = type_exp e2 in
-    match t1 with
-    | FTBase _ -> (** e1 and e2 should be nunmbers here.*)
-      if t1 = t2 && t1 <> FTBase TBool
-        then EBinOp (t1, op, e1, e2)
-        else raise (MyParsingError (error_msg, current_location()))
-    | _ -> raise (MyParsingError (error_msg, current_location()))
+    (** e1 and e2 should be nunmbers here.*)
+    if list_chk t1 [[TInt]; [TReal]] && list_chk t2 [[TInt]; [TReal]]
+      then
+        begin
+        if t1 = t2
+          then EBinOp (t1, op, e1, e2)
+          else raise (MyParsingError (error_msg, current_location()))
+        end
+      else raise (MyParsingError (error_msg, current_location()))
 
   let make_binop_bool e1 e2 op error_msg =
     let t1 = type_exp e1 in let t2 = type_exp e2 in
-    if t1 = t2 && t1 = FTBase TBool
+    if t1 = t2 && t1 = [TBool]
       then EBinOp (t1, op, e1, e2)
       else raise (MyParsingError (error_msg, current_location()))
 
   let make_comp e1 e2 op error_msg =
     let t1 = type_exp e1 in let t2 = type_exp e2 in
-    if t1 = t2
-      then EComp (FTBase TBool, op, e1, e2)
+    (** e1 and e2 should not be tuples *)
+    if t1 = t2 && List.length t1 = 1
+      then EComp ([TBool], op, e1, e2)
       else raise (MyParsingError (error_msg, current_location()))
 
   let make_comp_nonbool e1 e2 op error_msg =
     let t1 = type_exp e1 in let t2 = type_exp e2 in
-    match t1 with
-    | FTBase _ -> (** e1 and e2 should be numbers here. *)
-      if t1 = t2 && t1 <> FTBase TBool
-        then EComp (FTBase TBool, op, e1, e2)
-        else raise (MyParsingError (error_msg, current_location()))
-    | _ -> raise (MyParsingError (error_msg, current_location()))
+    (** e1 and e2 should be nunmbers here.*)
+    if list_chk t1 [[TInt]; [TReal]] && list_chk t2 [[TInt]; [TReal]]
+      then
+        begin
+        if t1 = t2
+          then EComp ([TBool], op, e1, e2)
+          else raise (MyParsingError (error_msg, current_location()))
+        end
+      else raise (MyParsingError (error_msg, current_location()))
 
   let make_tertiary e1 e2 e3 op error_msg =
     let t1 = type_exp e1 in let t2 = type_exp e2 in let t3 = type_exp e3 in
-    if t2 = t3 && t1 = FTBase TBool
+    if t2 = t3 && t1 = [TBool]
       then ETriOp (t2, op, e1, e2, e3)
       else raise (MyParsingError (error_msg, current_location()))
 
   let rec debug_type_pp fmt = function
-  | FTBase TBool   -> Format.fprintf fmt "bool"
-  | FTBase TReal   -> Format.fprintf fmt "real"
-  | FTBase TInt    -> Format.fprintf fmt "int"
-  | FTArr (t1, t2) -> Format.fprintf fmt "( %a -> %a )"
-                        debug_type_pp t1 debug_type_pp t2
-  | FTList []      -> ()
-  | FTList (h :: []) -> Format.fprintf fmt "l%a" debug_type_pp h
-  | FTList (h :: h' :: t) ->
-      Format.fprintf fmt "l%a; %a" debug_type_pp h debug_type_pp (FTList (h' :: t))
+  | [] -> ()
+  | TInt  :: t -> Format.fprintf fmt "int %a" debug_type_pp t
+  | TBool :: t -> Format.fprintf fmt "bool %a" debug_type_pp t
+  | TReal :: t -> Format.fprintf fmt "real %a" debug_type_pp t
 
   let debug_type =
     Format.printf "Type: %a\n" debug_type_pp
@@ -201,7 +195,8 @@ node_content:
           n_outputs    = (t_out, e_out);
           n_local_vars = $10;
           n_equations  = $12;
-          n_type = FTArr (t_in, t_out); } in
+          n_inputs_type = t_in;
+          n_outputs_type = t_out; } in
       Hashtbl.add defined_nodes node_name n; n };
 
 OPTIONAL_SEMICOL:
@@ -210,14 +205,14 @@ OPTIONAL_SEMICOL:
 ;
 
 in_params:
-  | /* empty */ { (FTList [], []) }
+  | /* empty */ { ([], []) }
   | param_list  { $1 }
 ;
 
 out_params: param_list { $1 } ;
 
 local_params:
-  | /* empty */        { (FTList [], []) }
+  | /* empty */        { ([], []) }
   | VAR param_list_semicol { $2 }
 ;
 
@@ -234,17 +229,14 @@ param:
   ident_comma_list COLON TYP
     { let typ = $3 in
       let idents = $1 in
-      (
-      (FTList
-        (List.map
-          (fun t -> FTBase t) (list_repeat (List.length idents) typ)),
+      (list_repeat (List.length idents) typ,
       match typ with
       | TBool ->
         List.map (fun s -> Hashtbl.add defined_vars s (BVar s); BVar s) idents
       | TReal ->
         List.map (fun s -> Hashtbl.add defined_vars s (RVar s); RVar s) idents
       | TInt  ->
-        List.map (fun s -> Hashtbl.add defined_vars s (IVar s); IVar s) idents)) }
+        List.map (fun s -> Hashtbl.add defined_vars s (IVar s); IVar s) idents) }
 ;
 
 ident_comma_list:
@@ -261,9 +253,7 @@ equation:
   pattern EQUAL expr
     { let (t_patt, patt) = $1 in
       let expr = $3 in let texpr = type_exp expr in
-      if (match texpr with
-      | FTList _ -> texpr = t_patt
-      | _        -> FTList [texpr] = t_patt)
+      if t_patt = texpr
         then ((t_patt, patt), expr)
         else (debug_type t_patt; debug_type (type_exp expr);
           raise (MyParsingError ("The equation does not type check!",
@@ -271,9 +261,7 @@ equation:
 
 pattern:
   | IDENT
-    { let v = fetch_var $1 in
-    (FTList [type_var v], [v])
-    }
+    { let v = fetch_var $1 in (type_var v, [v]) }
   | LPAREN ident_comma_list_patt RPAREN { $2 };
 
 ident_comma_list_patt:
@@ -286,16 +274,16 @@ expr:
   | IDENT                              { let v  = fetch_var $1 in EVar (type_var v, v) }
   /* Unary operators */
   | MO_not expr
-      { monop_condition $2 (FTBase TBool)
+      { monop_condition $2 [TBool]
           "You cannot negate a non-boolean expression."
           (EMonOp (type_exp $2, MOp_not, $2)) }
   | MO_pre expr                        { EMonOp (type_exp $2, MOp_pre, $2) }
   | MINUS expr
-      { monop_neg_condition $2 (FTBase TBool)
+      { monop_neg_condition $2 [TBool]
           "You cannot take the opposite of a boolean expression."
           (EMonOp (type_exp $2, MOp_minus, $2)) }
   | PLUS expr
-      { monop_neg_condition $2 (FTBase TBool)
+      { monop_neg_condition $2 [TBool]
           "You cannot take the plus of a boolean expression." $2 }
   /* Binary operators */
   | expr PLUS expr
@@ -357,21 +345,21 @@ expr:
   | expr WHEN expr
       { let e1 = $1 in let t1 = type_exp e1 in
         let e2 = $3 in let t2 = type_exp e2 in
-        if t2 = FTBase TBool
+        if t2 = [TBool]
          then EWhen (type_exp $1, $1, $3)
          else raise (MyParsingError ("The when does not type-check!",
                     current_location())) }
   | expr RESET expr
       { let e1 = $1 in let t1 = type_exp e1 in
         let e2 = $3 in let t2 = type_exp e2 in
-        if t2 = FTBase TBool
+        if t2 = [TBool]
          then EReset (type_exp $1, $1, $3)
          else raise (MyParsingError ("The reset does not type-check!",
                     current_location())) }
   /* Constants */
-  | CONST_INT                          { EConst (FTBase TInt, CInt $1) }
-  | CONST_BOOL                         { EConst (FTBase TBool, CBool $1) }
-  | CONST_REAL                         { EConst (FTBase TReal, CReal $1) }
+  | CONST_INT                          { EConst ([TInt], CInt $1) }
+  | CONST_BOOL                         { EConst ([TBool], CBool $1) }
+  | CONST_REAL                         { EConst ([TReal], CReal $1) }
   /* Tuples */
   | LPAREN expr_comma_list RPAREN      { $2 }
   /* Applications */
@@ -379,14 +367,9 @@ expr:
       { let name = $1 in
         let node = fetch_node name in
         let args = $3 in
-        match node.n_type with
-        | FTArr (tin, t) ->
-            if tin = type_exp args
-              then EApp (t, fetch_node name, args)
-              else raise (MyParsingError ("The application does not type check!",
-                          current_location()))
-        | _ -> raise (MyParsingError ("This exception should not have been \
-                      raised from the dead.",
+        if type_exp args = node.n_inputs_type
+          then EApp (node.n_outputs_type, fetch_node name, args)
+          else raise (MyParsingError ("The application does not type check!",
                       current_location()))
          }
 ;
@@ -396,13 +379,13 @@ expr_comma_list:
       { let e = $1 in
         match e with
         | ETuple _ -> e
-        | _ -> ETuple (FTList [type_exp e],  [e]) }
+        | _ -> ETuple (type_exp e,  [e]) }
   | expr COMMA expr_comma_list
       { let e = $1 in
         let le = $3 in
         match e, le with
-        | ETuple (FTList l1, t), ETuple (FTList l2, t') -> ETuple (FTList (l1@l2), t @ t')
-        | _, ETuple (FTList lt, t') -> ETuple (FTList ((type_exp e)::lt), e :: t')
+        | ETuple (l1, t), ETuple (l2, t') -> ETuple (l1 @ l2, t @ t')
+        | _, ETuple (lt, t') -> ETuple (((type_exp e) @ lt), e :: t')
         | _, _ -> raise (MyParsingError ("This exception should not have been \
                                           raised.",
                                           current_location())) }
