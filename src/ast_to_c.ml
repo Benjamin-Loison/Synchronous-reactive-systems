@@ -14,7 +14,7 @@ type var_list_delim =
 
 let rec pp_varlist var_list_delim fmt : t_varlist -> unit = function
   | ([], []) -> ()
-  | ([TInt] ,  IVar h :: []) -> let s = "" in Format.fprintf fmt (
+  | ([TInt] ,  IVar h :: []) -> Format.fprintf fmt (
       match var_list_delim with
           | Base -> "%s"
           | Arg -> "int %s"
@@ -62,7 +62,7 @@ let rec pp_retvarlist fmt : t_varlist -> unit = function
       Format.fprintf fmt  "bool, %a" pp_retvarlist (tl, h' :: l)
   | _ -> raise (MyTypeError "This exception should not have beed be raised.")
 
-let pp_expression =
+let pp_expression node_name =
   let rec pp_expression_aux prefix fmt expression =
     let rec pp_expression_list prefix fmt exprs =
       match exprs with
@@ -113,13 +113,17 @@ let pp_expression =
             Format.fprintf fmt "pre %s%a" prefix
               (pp_expression_aux prefix) arg
         end
+    | EBinOp (_, BOp_arrow, arg, arg') ->
+        Format.fprintf fmt "%sinit_%s ? %a : %a" prefix
+          node_name
+          (pp_expression_aux prefix) arg
+          (pp_expression_aux prefix) arg'
     | EBinOp (_, bop, arg, arg') ->
         begin
         let s = match bop with
         | BOp_add -> " + " | BOp_sub -> " - "
         | BOp_mul -> " * " | BOp_div -> " / " | BOp_mod -> " % "
-        (* TODO: -> *)
-        | BOp_and -> " && " | BOp_or  -> " || " | BOp_arrow -> " -> " in
+        | BOp_and -> " && " | BOp_or  -> " || " | _ -> "" (* `ocamlc` doesn't detect that `BOp_arrow` can't match here *) in
         Format.fprintf fmt "%s%a%s%a" prefix 
           (pp_expression_aux prefix) arg
           s
@@ -156,24 +160,27 @@ let pp_expression =
     in
   pp_expression_aux ""
 
-let rec pp_equations fmt: t_eqlist -> unit = function
+let rec pp_equations node_name fmt: t_eqlist -> unit = function
   | [] -> ()
   | (patt, expr) :: eqs ->
       Format.fprintf fmt "\t%a = %a;\n%a"
         (pp_varlist Base) patt
-        pp_expression expr
-        pp_equations eqs
+        (pp_expression node_name) expr
+        (pp_equations node_name) eqs
 
 (* TODO: manage general outputs *)
 let pp_node fmt node =
-  Format.fprintf fmt "%a %s(%a)\n{\n\t%a\n\n\t%a\n\n%a\n\treturn %a;\n}\n"
+  (* undefined behavior if the initial code uses a variable with name `init_{NODE_NAME}` *)
+  Format.fprintf fmt "bool init_%s = true;\n%a %s(%a)\n{\n\t%a\n\n\t%a\n\n%a\n\tinit_%s = false;\n\t\n\treturn %a;\n}\n"
+    node.n_name
     pp_retvarlist (node.n_outputs)
     node.n_name
     (* could avoid newlines if they aren't used to seperate statements *)
     (pp_varlist Arg) node.n_inputs
     (pp_varlist Dec) node.n_local_vars
     (pp_varlist Dec) node.n_outputs
-    pp_equations node.n_equations
+    (pp_equations node.n_name) node.n_equations
+    node.n_name
     (pp_varlist Base) node.n_outputs
 
 let rec pp_nodes fmt nodes =
@@ -184,7 +191,7 @@ let rec pp_nodes fmt nodes =
 
 let ast_to_c fmt prog =
   Format.fprintf fmt
-    (* could verify that uses a boolean in the ast before including `<stdbool.h>` *)
+    (* could verify that uses, possibly indirectly (cf `->` implementation), a boolean in the ast before including `<stdbool.h>` *)
     "#include <stdbool.h>\n\n%a"
     pp_nodes prog
 

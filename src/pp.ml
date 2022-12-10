@@ -55,8 +55,7 @@ let pp_expression =
         end
     | EConst (_, c) ->
         begin match c with
-        | CBool true ->  Format.fprintf fmt "\t\t\t%s<true : bool>\n" prefix
-        | CBool false ->  Format.fprintf fmt "\t\t\t%s<false : bool>\n" prefix
+        | CBool b ->  Format.fprintf fmt "\t\t\t%s<%s : bool>\n" prefix (Bool.to_string b)
         | CInt i ->      Format.fprintf fmt "\t\t\t%s<%5d: int>\n" prefix i
         | CReal r ->      Format.fprintf fmt "\t\t\t%s<%5f: float>\n" prefix r
         end
