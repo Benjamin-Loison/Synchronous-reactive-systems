@@ -157,7 +157,7 @@ let pp_expression =
 let rec pp_equations fmt: t_eqlist -> unit = function
   | [] -> ()
   | (patt, expr) :: eqs ->
-      Format.fprintf fmt "%a = %a;\n%a"
+      Format.fprintf fmt "\t%a = %a;\n%a"
         pp_varlist patt
         pp_expression expr
         pp_equations eqs
