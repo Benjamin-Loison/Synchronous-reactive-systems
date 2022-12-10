@@ -23,8 +23,9 @@ let check_well_formedness (a: t_nodelist) = Some a
 let check_dependencies (a: t_nodelist) = Some a
 let simplify_prog (a: t_nodelist) = Some a
 
-let run verbose debug (passes: (t_nodelist -> t_nodelist option) list)
-  = verbose "RUN_PLACEHOLDER"
+let run verbose debug (passes: (t_nodelist -> t_nodelist option) list) ast
+  = verbose "RUN_PLACEHOLDER";
+    Format.printf "%a" Ast_to_c.ast_to_c ast
 
 let _ =
   (** Usage and argument parsing. *)
@@ -88,6 +89,6 @@ let _ =
         (exit_error (Format.sprintf "The pass %s does not exist." pass); exit 0)
       | Some f ->
         (print_debug ("The pass "^pass^" has been selected."); f)) !passes in
-    run print_verbose print_debug passes;
+    run print_verbose print_debug passes ast;
     print_verbose "End of the program, exiting gracefully."
 
