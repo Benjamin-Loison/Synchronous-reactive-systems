@@ -22,24 +22,6 @@
                 ("The var "^n^" does not exist.", current_location()))
     | Some var -> var
 
-  let type_var (v: t_var) =
-      match v with
-      | IVar _ -> [TInt]
-      | BVar _ -> [TBool]
-      | RVar _ -> [TReal]
-
-  let type_exp : t_expression -> full_ty = function
-    | EVar   (full_ty , _) -> full_ty
-    | EMonOp (full_ty , _ , _) -> full_ty
-    | EBinOp (full_ty , _ , _ , _) -> full_ty
-    | ETriOp (full_ty , _ , _ , _ , _) -> full_ty
-    | EComp  (full_ty , _ , _ , _) -> full_ty
-    | EWhen  (full_ty , _ , _) -> full_ty
-    | EReset (full_ty , _ , _) -> full_ty
-    | EConst (full_ty , _) -> full_ty
-    | ETuple (full_ty , _) -> full_ty
-    | EApp   (full_ty , _ , _) -> full_ty
-
   let concat_varlist  (t1, e1) (t2, e2) = (t1 @ t2, e1 @ e2)
 
   let make_ident (v : t_var) : t_varlist =
@@ -106,15 +88,6 @@
     if t2 = t3 && t1 = [TBool]
       then ETriOp (t2, op, e1, e2, e3)
       else raise (MyParsingError (error_msg, current_location()))
-
-  let rec debug_type_pp fmt = function
-  | [] -> ()
-  | TInt  :: t -> Format.fprintf fmt "int %a" debug_type_pp t
-  | TBool :: t -> Format.fprintf fmt "bool %a" debug_type_pp t
-  | TReal :: t -> Format.fprintf fmt "real %a" debug_type_pp t
-
-  let debug_type =
-    Format.printf "Type: %a\n" debug_type_pp
 
 %}
 
@@ -255,8 +228,7 @@ equation:
       let expr = $3 in let texpr = type_exp expr in
       if t_patt = texpr
         then ((t_patt, patt), expr)
-        else (debug_type t_patt; debug_type (type_exp expr);
-          raise (MyParsingError ("The equation does not type check!",
+        else (raise (MyParsingError ("The equation does not type check!",
                     current_location()))) };
 
 pattern:

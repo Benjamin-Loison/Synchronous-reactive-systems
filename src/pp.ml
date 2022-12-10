@@ -1,5 +1,11 @@
 open Ast
 
+  let rec debug_type_pp fmt = function
+  | [] -> ()
+  | TInt  :: t -> Format.fprintf fmt "int %a" debug_type_pp t
+  | TBool :: t -> Format.fprintf fmt "bool %a" debug_type_pp t
+  | TReal :: t -> Format.fprintf fmt "real %a" debug_type_pp t
+
 let pp_loc fmt (start, stop) =
   Lexing.(
     Format.fprintf fmt "%s: <l: %d, c: %d> -- <l: %d, c: %d>"
@@ -118,7 +124,8 @@ let pp_expression =
 let rec pp_equations fmt: t_eqlist -> unit = function
   | [] -> ()
   | (patt, expr) :: eqs ->
-      Format.fprintf fmt "\t\t∗ left side: %a\n\t\t  right side:\n%a\n%a"
+      Format.fprintf fmt "\t\t∗ Equation of type : %a\n\t\t  left side: %a\n\t\t  right side:\n%a\n%a"
+        debug_type_pp (Utils.type_exp expr)
         pp_varlist patt
         pp_expression expr
         pp_equations eqs
