@@ -67,7 +67,6 @@ let pp_expression node_name =
     let rec pp_expression_list prefix fmt exprs =
       match exprs with
       | ETuple([], []) -> ()
-      (* TODO: assignment (in addition to the current app call support) *)
       | ETuple (_ :: tt, expr :: exprs) ->
           Format.fprintf fmt "%a%s%a"
             (pp_expression_aux (prefix)) expr
@@ -162,6 +161,8 @@ let pp_expression node_name =
 
 let rec pp_equations node_name fmt: t_eqlist -> unit = function
   | [] -> ()
+  | (([], []), (ETuple ([], []))) :: eqs -> Format.fprintf fmt "%a" (pp_equations node_name) eqs
+  | ((l_type :: l_types, var :: vars), (ETuple (r_type :: r_types, expr :: exprs))) :: eqs -> Format.fprintf fmt "%a" (pp_equations node_name) ((([l_type], [var]), expr) :: ((l_types, vars), (ETuple (r_types, exprs))) :: eqs)
   | (patt, expr) :: eqs ->
       Format.fprintf fmt "\t%a = %a;\n%a"
         (pp_varlist Base) patt
