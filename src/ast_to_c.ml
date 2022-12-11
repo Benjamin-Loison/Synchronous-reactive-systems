@@ -77,14 +77,8 @@ let rec pp_prevarlist node_name fmt : t_varlist -> unit = function
 
 let rec pp_asnprevarlist node_name fmt : t_varlist -> unit = function
   | ([], []) -> ()
-  | ([TInt] , IVar h :: []) -> Format.fprintf fmt "\tpre_%s_%s = %s;" node_name h h
-  | ([TReal], RVar h :: []) -> Format.fprintf fmt "\tpre_%s_%s = %s;" node_name h h
-  | ([TBool], BVar h :: []) -> Format.fprintf fmt "\tpre_%s_%s = %s;" node_name h h
-  | (TInt :: tl,  IVar h :: h' :: l) ->
-      Format.fprintf fmt "\tpre_%s_%s = %s;\n%a" node_name h h (pp_asnprevarlist node_name) (tl, h' :: l)
-  | (TBool :: tl, BVar h :: h' :: l) ->
-      Format.fprintf fmt "\tpre_%s_%s = %s;\n%a" node_name h h (pp_asnprevarlist node_name) (tl, h' :: l)
-  | (TReal :: tl, RVar h :: h' :: l) ->
+  | ([TInt] , IVar h :: []) | ([TReal], RVar h :: []) | ([TBool], BVar h :: []) -> Format.fprintf fmt "\tpre_%s_%s = %s;" node_name h h
+  | (TInt :: tl,  IVar h :: h' :: l) | (TBool :: tl, BVar h :: h' :: l) | (TReal :: tl, RVar h :: h' :: l) ->
       Format.fprintf fmt "\tpre_%s_%s = %s;\n%a" node_name h h (pp_asnprevarlist node_name) (tl, h' :: l)
   | _ -> raise (MyTypeError "This exception should not have beed be raised.")
 
@@ -95,7 +89,7 @@ let pp_expression node_name =
       | ETuple([], []) -> ()
       | ETuple (_ :: tt, expr :: exprs) ->
           Format.fprintf fmt "%a%s%a"
-            (pp_expression_aux (prefix)) expr
+            (pp_expression_aux prefix) expr
             (if (List.length tt > 0) then ", " else "")
             (pp_expression_list prefix) (ETuple (tt, exprs))
       | _ -> raise (MyTypeError "This exception should not have been raised.")
@@ -118,13 +112,11 @@ let pp_expression node_name =
         end
     | EConst (_, c) ->
         begin match c with
-        | CBool b ->  Format.fprintf fmt "%s%s" prefix (Bool.to_string b)
-        | CInt i ->   Format.fprintf fmt "%s%i" prefix i
-        | CReal r ->  Format.fprintf fmt "%s%f" prefix r
+        | CBool b -> Format.fprintf fmt "%s%s" prefix (Bool.to_string b)
+        | CInt i ->  Format.fprintf fmt "%s%i" prefix i
+        | CReal r -> Format.fprintf fmt "%s%f" prefix r
         end
-    | EVar (_, IVar v) -> Format.fprintf fmt "%s%s" prefix v
-    | EVar (_, BVar v) -> Format.fprintf fmt "%s%s" prefix v
-    | EVar (_, RVar v) -> Format.fprintf fmt "%s%s" prefix v
+    | EVar (_, IVar v) | EVar (_, BVar v) | EVar (_, RVar v) -> Format.fprintf fmt "%s%s" prefix v
     | EMonOp (_, mop, arg) ->
         begin match mop with
         | MOp_not ->

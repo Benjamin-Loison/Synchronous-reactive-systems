@@ -15,15 +15,15 @@ let pp_loc fmt (start, stop) =
 
 let rec pp_varlist fmt : t_varlist -> unit = function
   | ([], []) -> ()
-  | ([TInt] ,  IVar h :: []) -> Format.fprintf fmt  "%s: int" h
-  | ([TReal], RVar h :: []) -> Format.fprintf fmt  "%s: real" h
-  | ([TBool], BVar h :: []) -> Format.fprintf fmt  "%s: bool" h
+  | ([TInt] , IVar h :: []) -> Format.fprintf fmt "%s: int" h
+  | ([TReal], RVar h :: []) -> Format.fprintf fmt "%s: real" h
+  | ([TBool], BVar h :: []) -> Format.fprintf fmt "%s: bool" h
   | (TInt :: tl,  IVar h :: h' :: l) ->
-      Format.fprintf fmt  "%s: int, %a"  h pp_varlist (tl, h' :: l)
+      Format.fprintf fmt "%s: int, %a"  h pp_varlist (tl, h' :: l)
   | (TBool :: tl, BVar h :: h' :: l) ->
-      Format.fprintf fmt  "%s: bool, %a" h pp_varlist (tl, h' :: l)
+      Format.fprintf fmt "%s: bool, %a" h pp_varlist (tl, h' :: l)
   | (TReal :: tl, RVar h :: h' :: l) ->
-      Format.fprintf fmt  "%s: real, %a" h pp_varlist (tl, h' :: l)
+      Format.fprintf fmt "%s: real, %a" h pp_varlist (tl, h' :: l)
   | _ -> raise (MyTypeError "This exception should not have beed be raised.")
 
 let pp_expression =
@@ -55,9 +55,9 @@ let pp_expression =
         end
     | EConst (_, c) ->
         begin match c with
-        | CBool b ->  Format.fprintf fmt "\t\t\t%s<%s : bool>\n" prefix (Bool.to_string b)
-        | CInt i ->      Format.fprintf fmt "\t\t\t%s<%5d: int>\n" prefix i
-        | CReal r ->      Format.fprintf fmt "\t\t\t%s<%5f: float>\n" prefix r
+        | CBool b -> Format.fprintf fmt "\t\t\t%s<%s : bool>\n" prefix (Bool.to_string b)
+        | CInt i ->  Format.fprintf fmt "\t\t\t%s<%5d: int>\n" prefix i
+        | CReal r -> Format.fprintf fmt "\t\t\t%s<%5f: float>\n" prefix r
         end
     | EVar (_, IVar v) -> Format.fprintf fmt "\t\t\t%s<int var %s>\n" prefix v
     | EVar (_, BVar v) -> Format.fprintf fmt "\t\t\t%s<bool var %s>\n" prefix v
