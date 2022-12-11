@@ -14,17 +14,17 @@ type var_list_delim =
 
 let rec pp_varlist var_list_delim fmt : t_varlist -> unit = function
   | ([], []) -> ()
-  | ([TInt] ,  IVar h :: []) -> Format.fprintf fmt (
+  | ([TInt] , IVar h :: []) -> Format.fprintf fmt (
       match var_list_delim with
           | Base -> "%s"
           | Arg -> "int %s"
           | Dec -> "int %s;") h
-  | ([TReal],  RVar h :: []) -> Format.fprintf fmt (
+  | ([TReal], RVar h :: []) -> Format.fprintf fmt (
       match var_list_delim with
           | Base -> "%s"
           | Arg -> "float %s"
           | Dec -> "float %s;") h
-  | ([TBool],  BVar h :: []) -> Format.fprintf fmt (
+  | ([TBool], BVar h :: []) -> Format.fprintf fmt (
       match var_list_delim with
           | Base -> "%s"
           | Arg -> "bool %s"
@@ -51,15 +51,41 @@ let rec pp_varlist var_list_delim fmt : t_varlist -> unit = function
 
 let rec pp_retvarlist fmt : t_varlist -> unit = function
   | ([], []) -> ()
-  | ([TInt] ,  IVar h :: []) -> Format.fprintf fmt  "int"
-  | ([TReal],  RVar h :: []) -> Format.fprintf fmt  "float"
-  | ([TBool],  BVar h :: []) -> Format.fprintf fmt  "bool"
+  | ([TInt] , IVar h :: []) -> Format.fprintf fmt "int"
+  | ([TReal], RVar h :: []) -> Format.fprintf fmt "float"
+  | ([TBool], BVar h :: []) -> Format.fprintf fmt "bool"
   | (TInt :: tl,  IVar h :: h' :: l) ->
-      Format.fprintf fmt  "int, %a" pp_retvarlist (tl, h' :: l)
+      Format.fprintf fmt "int, %a" pp_retvarlist (tl, h' :: l)
   | (TBool :: tl, BVar h :: h' :: l) ->
-      Format.fprintf fmt  "float, %a" pp_retvarlist (tl, h' :: l)
+      Format.fprintf fmt "float, %a" pp_retvarlist (tl, h' :: l)
   | (TReal :: tl, RVar h :: h' :: l) ->
-      Format.fprintf fmt  "bool, %a" pp_retvarlist (tl, h' :: l)
+      Format.fprintf fmt "bool, %a" pp_retvarlist (tl, h' :: l)
+  | _ -> raise (MyTypeError "This exception should not have beed be raised.")
+
+let rec pp_prevarlist node_name fmt : t_varlist -> unit = function
+  | ([], []) -> ()
+  | ([TInt] , IVar h :: []) -> Format.fprintf fmt "int pre_%s_%s;" node_name h
+  | ([TReal], RVar h :: []) -> Format.fprintf fmt "float pre_%s_%s;" node_name h
+  | ([TBool], BVar h :: []) -> Format.fprintf fmt "bool pre_%s_%s;" node_name h
+  | (TInt :: tl,  IVar h :: h' :: l) ->
+      Format.fprintf fmt "int pre_%s_%s;\n%a" node_name h (pp_prevarlist node_name) (tl, h' :: l)
+  | (TBool :: tl, BVar h :: h' :: l) ->
+      Format.fprintf fmt "float pre_%s_%s;\n%a" node_name h (pp_prevarlist node_name) (tl, h' :: l)
+  | (TReal :: tl, RVar h :: h' :: l) ->
+      Format.fprintf fmt "bool pre_%s_%s;\n%a" node_name h (pp_prevarlist node_name) (tl, h' :: l)
+  | _ -> raise (MyTypeError "This exception should not have beed be raised.")
+
+let rec pp_asnprevarlist node_name fmt : t_varlist -> unit = function
+  | ([], []) -> ()
+  | ([TInt] , IVar h :: []) -> Format.fprintf fmt "\tpre_%s_%s = %s;" node_name h h
+  | ([TReal], RVar h :: []) -> Format.fprintf fmt "\tpre_%s_%s = %s;" node_name h h
+  | ([TBool], BVar h :: []) -> Format.fprintf fmt "\tpre_%s_%s = %s;" node_name h h
+  | (TInt :: tl,  IVar h :: h' :: l) ->
+      Format.fprintf fmt "\tpre_%s_%s = %s;\n%a" node_name h h (pp_asnprevarlist node_name) (tl, h' :: l)
+  | (TBool :: tl, BVar h :: h' :: l) ->
+      Format.fprintf fmt "\tpre_%s_%s = %s;\n%a" node_name h h (pp_asnprevarlist node_name) (tl, h' :: l)
+  | (TReal :: tl, RVar h :: h' :: l) ->
+      Format.fprintf fmt "\tpre_%s_%s = %s;\n%a" node_name h h (pp_asnprevarlist node_name) (tl, h' :: l)
   | _ -> raise (MyTypeError "This exception should not have beed be raised.")
 
 let pp_expression node_name =
@@ -107,9 +133,8 @@ let pp_expression node_name =
         | MOp_minus ->
             Format.fprintf fmt "-%s%a" prefix
               (pp_expression_aux prefix) arg
-        (* TODO *)
         | MOp_pre ->
-            Format.fprintf fmt "pre %s%a" prefix
+            Format.fprintf fmt "pre_%s_%s%a" node_name prefix
               (pp_expression_aux prefix) arg
         end
     | EBinOp (_, BOp_arrow, arg, arg') ->
@@ -171,10 +196,14 @@ let rec pp_equations node_name fmt: t_eqlist -> unit = function
 
 (* TODO: manage general outputs *)
 let pp_node fmt node =
-  (* undefined behavior if the initial code uses a variable with name `init_{NODE_NAME}` *)
-  Format.fprintf fmt "bool init_%s = true;\n%a %s(%a)\n{\n\t%a\n\n\t%a\n\n%a\n\tinit_%s = false;\n\t\n\treturn %a;\n}\n"
+  (* undefined behavior if the initial code uses a variable with name `init_{NODE_NAME}` or `pre_{NODE_MAIN}_{VARIABLE}` *)
+  Format.fprintf fmt "bool init_%s = true;\n\n%a\n\n%a\n\n%a\n\n%a %s(%a)\n{\n\t%a\n\n\t%a\n\n%a\n\tinit_%s = false;\n\n%a\n\n%a\n\n%a\n\n\treturn %a;\n}\n"
     node.n_name
-    pp_retvarlist (node.n_outputs)
+    (* could avoid declaring unused variables *)
+    (pp_prevarlist node.n_name) node.n_inputs
+    (pp_prevarlist node.n_name) node.n_local_vars
+    (pp_prevarlist node.n_name) node.n_outputs
+    pp_retvarlist node.n_outputs
     node.n_name
     (* could avoid newlines if they aren't used to seperate statements *)
     (pp_varlist Arg) node.n_inputs
@@ -182,6 +211,9 @@ let pp_node fmt node =
     (pp_varlist Dec) node.n_outputs
     (pp_equations node.n_name) node.n_equations
     node.n_name
+    (pp_asnprevarlist node.n_name) node.n_inputs
+    (pp_asnprevarlist node.n_name) node.n_local_vars
+    (pp_asnprevarlist node.n_name) node.n_outputs
     (pp_varlist Base) node.n_outputs
 
 let rec pp_nodes fmt nodes =
