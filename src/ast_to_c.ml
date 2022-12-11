@@ -83,67 +83,65 @@ let rec pp_asnprevarlist node_name fmt : t_varlist -> unit = function
   | _ -> raise (MyTypeError "This exception should not have beed be raised.")
 
 let pp_expression node_name =
-  let rec pp_expression_aux prefix fmt expression =
-    let rec pp_expression_list prefix fmt exprs =
+  let rec pp_expression_aux fmt expression =
+    let rec pp_expression_list fmt exprs =
       match exprs with
       | ETuple([], []) -> ()
       | ETuple (_ :: tt, expr :: exprs) ->
           Format.fprintf fmt "%a%s%a"
-            (pp_expression_aux prefix) expr
+            pp_expression_aux expr
             (if (List.length tt > 0) then ", " else "")
-            (pp_expression_list prefix) (ETuple (tt, exprs))
+            pp_expression_list (ETuple (tt, exprs))
       | _ -> raise (MyTypeError "This exception should not have been raised.")
     in
     match expression with
     | EWhen (_, e1, e2) ->
         begin
           (* as don't use a variable assigned when the condition holds, can define it even if the condition doesn't hold *)
-          Format.fprintf fmt "%s%a"
-            prefix
-            (pp_expression_aux prefix) e1
+          Format.fprintf fmt "%a"
+            pp_expression_aux e1
         end
     (* TODO: *)
     | EReset (_, e1, e2) ->
         begin
-          Format.fprintf fmt "\t\t\t%sRESET\n%a\t\t\tRESET\n%a"
-            prefix
-            (pp_expression_aux prefix) e1
-            (pp_expression_aux prefix) e2
+          Format.fprintf fmt "\t\t\tRESET\n%a\t\t\tRESET\n%a"
+            pp_expression_aux e1
+            pp_expression_aux e2
         end
     | EConst (_, c) ->
         begin match c with
-        | CBool b -> Format.fprintf fmt "%s%s" prefix (Bool.to_string b)
-        | CInt i ->  Format.fprintf fmt "%s%i" prefix i
-        | CReal r -> Format.fprintf fmt "%s%f" prefix r
+        | CBool b -> Format.fprintf fmt "%s" (Bool.to_string b)
+        | CInt i ->  Format.fprintf fmt "%i" i
+        | CReal r -> Format.fprintf fmt "%f" r
         end
-    | EVar (_, IVar v) | EVar (_, BVar v) | EVar (_, RVar v) -> Format.fprintf fmt "%s%s" prefix v
+    | EVar (_, IVar v) | EVar (_, BVar v) | EVar (_, RVar v) -> Format.fprintf fmt "%s" v
     | EMonOp (_, mop, arg) ->
         begin match mop with
         | MOp_not ->
-            Format.fprintf fmt "!%s%a" prefix
-              (pp_expression_aux prefix) arg
+            Format.fprintf fmt "!%a"
+              pp_expression_aux arg
         | MOp_minus ->
-            Format.fprintf fmt "-%s%a" prefix
-              (pp_expression_aux prefix) arg
+            Format.fprintf fmt "-%a"
+              pp_expression_aux arg
         | MOp_pre ->
-            Format.fprintf fmt "pre_%s_%s%a" node_name prefix
-              (pp_expression_aux prefix) arg
+            Format.fprintf fmt "pre_%s_%a" node_name
+              pp_expression_aux arg
         end
     | EBinOp (_, BOp_arrow, arg, arg') ->
-        Format.fprintf fmt "%sinit_%s ? %a : %a" prefix
+        Format.fprintf fmt "init_%s ? %a : %a"
           node_name
-          (pp_expression_aux prefix) arg
-          (pp_expression_aux prefix) arg'
+          pp_expression_aux arg
+          pp_expression_aux arg'
     | EBinOp (_, bop, arg, arg') ->
         begin
         let s = match bop with
         | BOp_add -> " + " | BOp_sub -> " - "
         | BOp_mul -> " * " | BOp_div -> " / " | BOp_mod -> " % "
         | BOp_and -> " && " | BOp_or  -> " || " | _ -> "" (* `ocamlc` doesn't detect that `BOp_arrow` can't match here *) in
-        Format.fprintf fmt "%s%a%s%a" prefix 
-          (pp_expression_aux prefix) arg
+        Format.fprintf fmt "%a%s%a"
+          pp_expression_aux arg
           s
-          (pp_expression_aux prefix) arg'
+          pp_expression_aux arg'
         end
     | EComp (_, cop, arg, arg') ->
         begin
@@ -152,29 +150,28 @@ let pp_expression node_name =
         | COp_neq -> " != "
         | COp_le  -> " <= " | COp_lt  -> " < "
         | COp_ge  -> " >= " | COp_gt  -> " > " in
-        Format.fprintf fmt "%s%a%s%a" prefix 
-          (pp_expression_aux prefix) arg
+        Format.fprintf fmt "%a%s%a"
+          pp_expression_aux arg
           s
-          (pp_expression_aux prefix) arg'
+          pp_expression_aux arg'
         end
     | ETriOp (_, top, arg, arg', arg'') ->
         begin match top with
         | TOp_if | TOp_merge ->
-            Format.fprintf fmt "%s%a ? %a : %a"
-              prefix
-              (pp_expression_aux prefix) arg
-              (pp_expression_aux prefix) arg'
-              (pp_expression_aux prefix) arg''
+            Format.fprintf fmt "%a ? %a : %a"
+              pp_expression_aux arg
+              pp_expression_aux arg'
+              pp_expression_aux arg''
         end
     | EApp (_, f, args)  ->
-        Format.fprintf fmt "%s%s(%a)"
-          prefix f.n_name
-          (pp_expression_list prefix) args
+        Format.fprintf fmt "%s(%a)"
+          f.n_name
+          pp_expression_list args
     | ETuple _ ->
-        Format.fprintf fmt "%s%a" prefix
-          (pp_expression_list prefix) expression;
+        Format.fprintf fmt "%a"
+          pp_expression_list expression;
     in
-  pp_expression_aux ""
+  pp_expression_aux
 
 let rec pp_equations node_name fmt: t_eqlist -> unit = function
   | [] -> ()
