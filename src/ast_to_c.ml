@@ -156,8 +156,7 @@ let pp_expression node_name =
           pp_expression_aux arg'
         end
     | ETriOp (_, top, arg, arg', arg'') ->
-        begin match top with
-        | TOp_if | TOp_merge ->
+        begin
             Format.fprintf fmt "%a ? %a : %a"
               pp_expression_aux arg
               pp_expression_aux arg'
