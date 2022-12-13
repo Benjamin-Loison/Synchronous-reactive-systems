@@ -4,9 +4,9 @@
 
   let current_location () = symbol_start_pos (), symbol_end_pos ()
 
-  let defined_nodes : (ident, t_node) Hashtbl.t = Hashtbl.create 100
+  let defined_nodes : (ident, t_node) Hashtbl.t = Hashtbl.create Config.maxvar
 
-  let defined_vars : (ident, t_var) Hashtbl.t = Hashtbl.create 100
+  let defined_vars : (ident, t_var * bool) Hashtbl.t = Hashtbl.create Config.maxvar
 
   let fetch_node (n: ident) =
     match Hashtbl.find_opt defined_nodes n with
@@ -20,7 +20,19 @@
     | None ->
         raise (MyParsingError
                 ("The var "^n^" does not exist.", current_location()))
-    | Some var -> var
+    | Some (var, _) -> var
+
+  let fetch_var_def (n: ident) : t_var =
+    match Hashtbl.find_opt defined_vars n with
+    | None ->
+        raise (MyParsingError
+                ("The var "^n^" does not exist.", current_location()))
+    | Some (var, true) ->
+        raise (MyParsingError
+                ("The variable "^n^" is defined for the second time.",
+                current_location()))
+    | Some (var, false) ->
+        (Hashtbl.replace defined_vars n (var, true) ; var)
 
   let concat_varlist  (t1, e1) (t2, e2) = (t1 @ t2, e1 @ e2)
 
@@ -205,11 +217,14 @@ param:
       (list_repeat (List.length idents) typ,
       match typ with
       | TBool ->
-        List.map (fun s -> Hashtbl.add defined_vars s (BVar s); BVar s) idents
+        List.map (fun s ->
+          Hashtbl.add defined_vars s (BVar s, false); BVar s) idents
       | TReal ->
-        List.map (fun s -> Hashtbl.add defined_vars s (RVar s); RVar s) idents
+        List.map (fun s ->
+          Hashtbl.add defined_vars s (RVar s, false); RVar s) idents
       | TInt  ->
-        List.map (fun s -> Hashtbl.add defined_vars s (IVar s); IVar s) idents) }
+        List.map (fun s ->
+          Hashtbl.add defined_vars s (IVar s, false); IVar s) idents) }
 ;
 
 ident_comma_list:
@@ -233,12 +248,12 @@ equation:
 
 pattern:
   | IDENT
-    { let v = fetch_var $1 in (type_var v, [v]) }
+    { let v = fetch_var_def $1 in (type_var v, [v]) }
   | LPAREN ident_comma_list_patt RPAREN { $2 };
 
 ident_comma_list_patt:
-  | IDENT { make_ident (fetch_var $1) }
-  | IDENT COMMA ident_comma_list_patt { add_ident (fetch_var $1) $3 }
+  | IDENT { make_ident (fetch_var_def $1) }
+  | IDENT COMMA ident_comma_list_patt { add_ident (fetch_var_def $1) $3 }
 
 expr:
   /* Note: EQUAL does not follow the nomenclature CMP_, ... */
