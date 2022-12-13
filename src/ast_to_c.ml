@@ -169,7 +169,6 @@ let pp_expression node_name =
     | ETuple _ ->
         Format.fprintf fmt "%a"
           pp_expression_list expression;
-    | EAuto _ -> failwith "todo"
     in
   pp_expression_aux
 

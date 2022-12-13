@@ -78,7 +78,6 @@ let pre2vars =
     | EApp   (ty, node, arg) ->
         let arg = pre_push arg in
         EApp (ty, node, arg)
-    | EAuto _ -> failwith "toto"
   in
   let rec aux (expr: t_expression) =
     match expr with
@@ -113,7 +112,6 @@ let pre2vars =
     | EApp   (ty, node, arg) ->
         let arg = aux arg in
         EApp (ty, node, arg)
-    | EAuto _ -> failwith "todo"
   in
   expression_pass (Utils.somify aux)
 
