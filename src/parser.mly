@@ -7,7 +7,7 @@
 
   let defined_nodes : (ident, t_node) Hashtbl.t = Hashtbl.create Config.maxvar
 
-  let defined_vars : (ident, t_var * bool) Hashtbl.t = Hashtbl.create Config.maxvar
+  let defined_vars : (ident, t_var) Hashtbl.t = Hashtbl.create Config.maxvar
 
   let fetch_node (n: ident) =
     match Hashtbl.find_opt defined_nodes n with
@@ -21,8 +21,9 @@
     | None ->
         raise (MyParsingError
                 ("The var "^n^" does not exist.", current_location()))
-    | Some (var, _) -> var
+    | Some var -> var
 
+  (*
   let fetch_var_def (n: ident) : t_var =
     match Hashtbl.find_opt defined_vars n with
     | None ->
@@ -34,6 +35,7 @@
                 current_location()))
     | Some (var, false) ->
         (Hashtbl.replace defined_vars n (var, true) ; var)
+    *)
 
   let concat_varlist  (t1, e1) (t2, e2) = (t1 @ t2, e1 @ e2)
 
@@ -179,8 +181,9 @@ node_content:
   IDENT LPAREN in_params RPAREN
   RETURNS LPAREN out_params RPAREN OPTIONAL_SEMICOL
   local_params
-  LET equations TEL OPTIONAL_SEMICOL
+  LET node_body TEL OPTIONAL_SEMICOL
     { let node_name = $1 in
+      let (eqs, aut) = $12 in
       let (t_in, e_in) = $3 in
       let (t_out, e_out) = $7 in
       let n: t_node = 
@@ -188,10 +191,16 @@ node_content:
           n_inputs     = (t_in, e_in);
           n_outputs    = (t_out, e_out);
           n_local_vars = $10;
-          n_equations  = $12;
+          n_equations  = eqs;
+          n_automata = aut;
           n_inputs_type = t_in;
           n_outputs_type = t_out; } in
       Hashtbl.add defined_nodes node_name n; n };
+
+node_body:
+  | /* empty */ { ([], []) }
+  | equations node_body { let (eq, aut) = $2 in ($1@eq, aut) }
+  | automaton node_body { let (eq, aut) = $2 in (eq, $1::aut) }
 
 OPTIONAL_SEMICOL:
   | /* empty */ {}
@@ -227,13 +236,13 @@ param:
       match typ with
       | TBool ->
         List.map (fun s ->
-          Hashtbl.add defined_vars s (BVar s, false); BVar s) idents
+          Hashtbl.add defined_vars s (BVar s); BVar s) idents
       | TReal ->
         List.map (fun s ->
-          Hashtbl.add defined_vars s (RVar s, false); RVar s) idents
+          Hashtbl.add defined_vars s (RVar s); RVar s) idents
       | TInt  ->
         List.map (fun s ->
-          Hashtbl.add defined_vars s (IVar s, false); IVar s) idents) }
+          Hashtbl.add defined_vars s (IVar s); IVar s) idents) }
 ;
 
 ident_comma_list:
@@ -247,22 +256,25 @@ equations:
 ;
 
 equation:
-  pattern EQUAL expr
+  | pattern EQUAL expr
     { let (t_patt, patt) = $1 in
       let expr = $3 in let texpr = type_exp expr in
       if t_patt = texpr
         then ((t_patt, patt), expr)
         else (raise (MyParsingError ("The equation does not type check!",
                     current_location()))) };
+automaton:
+  | AUTOMAT transition_list { (List.hd $2, $2)}
+;
 
 pattern:
   | IDENT
-    { let v = fetch_var_def $1 in (type_var v, [v]) }
+    { let v = fetch_var $1 in (type_var v, [v]) }
   | LPAREN ident_comma_list_patt RPAREN { $2 };
 
 ident_comma_list_patt:
-  | IDENT { make_ident (fetch_var_def $1) }
-  | IDENT COMMA ident_comma_list_patt { add_ident (fetch_var_def $1) $3 }
+  | IDENT { make_ident (fetch_var $1) }
+  | IDENT COMMA ident_comma_list_patt { add_ident (fetch_var $1) $3 }
 
 expr:
   /* Note: EQUAL does not follow the nomenclature CMP_, ... */
@@ -368,6 +380,8 @@ expr:
           else raise (MyParsingError ("The application does not type check!",
                       current_location()))
          }
+
+  /* Automaton */
 ;
 
 expr_comma_list:
@@ -392,10 +406,6 @@ ident_comma_list:
   | IDENT COMMA ident_comma_list { $1 :: $3 }
 ;
 
-automaton:
-  AUTOMAT transition_list { bloop(); EAuto( [], List.hd $2, $2 ) }
-;
-
 transition:
   | CASE IDENT BO_arrow DO equations DONE { 
       State($2, $5, EConst([TBool], CBool(true)), $2) }
@@ -406,4 +416,5 @@ transition:
 transition_list:
   | transition { [$1] }
   | transition transition_list { $1 :: $2 }
+  | /* empty */ {raise(MyParsingError("Empty automaton", current_location()))}
 ;

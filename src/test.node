@@ -11,3 +11,10 @@ let
 	o = (not (not (l1 = l2))) and (l1 = l2) and true;
 tel
 
+node auto (i: int) returns (o : int);
+let
+	automaton
+	| Incr -> do o = (pre o) + 1; done
+	| Decr -> do o = (pre o) - 1; done
+tel
+

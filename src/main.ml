@@ -64,6 +64,7 @@ let _ =
     let inchan = open_in !source_file in
     try
       begin
+        let _ = Parsing.set_trace true in
       let res = Parser.main Lexer.token (Lexing.from_channel inchan) in
       close_in inchan; res
       end
