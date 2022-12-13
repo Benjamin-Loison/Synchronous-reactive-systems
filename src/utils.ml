@@ -1,5 +1,11 @@
 open Ast
 
+let rec list_map_option (f: 'a -> 'b option) (l: 'a list) : 'b list option =
+  List.fold_right (fun elt acc ->
+    match acc, f elt with
+    | None, _ | _, None -> None
+    | Some acc, Some elt -> Some (elt :: acc)) l (Some [])
+
 let rec list_repeat n elt =
   if n = 0 then [] else elt :: (list_repeat (n-1) elt)
 
@@ -27,3 +33,4 @@ let type_exp : t_expression -> full_ty = function
   | ETuple (full_ty , _) -> full_ty
   | EApp   (full_ty , _ , _) -> full_ty
 
+let somify f = fun e -> Some (f e)

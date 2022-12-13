@@ -383,4 +383,3 @@ ident_comma_list:
   | IDENT COMMA ident_comma_list { $1 :: $3 }
 ;
 
-
