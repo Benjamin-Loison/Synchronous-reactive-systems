@@ -65,19 +65,21 @@ let _ =
   (** Main functionality below *)
   print_verbose "Parsing the source file...";
   let ast =
+    let inchan = open_in !source_file in
     try
       begin
-      let inchan = open_in !source_file in
       let res = Parser.main Lexer.token (Lexing.from_channel inchan) in
       close_in inchan; res
       end
     with
     | Lexer.Lexing_error s ->
-        (exit_error (Format.sprintf "Error code:\n\t%s\n\n" s); exit 0)
+        (close_in_noerr inchan;
+          exit_error (Format.sprintf "Error code:\n\t%s\n\n" s); exit 0)
     | Utils.MyParsingError (s, l) ->
       begin
+        close_in_noerr inchan;
         Format.printf "Syntax error at %a: %s\n\n"
-          Pp.pp_loc l s;
+          Pp.pp_loc (l, !source_file) s;
         exit 0
       end in
 

@@ -6,12 +6,25 @@ open Ast
   | TBool :: t -> Format.fprintf fmt "bool %a" debug_type_pp t
   | TReal :: t -> Format.fprintf fmt "real %a" debug_type_pp t
 
-let pp_loc fmt (start, stop) =
-  Lexing.(
-    Format.fprintf fmt "%s: <l: %d, c: %d> -- <l: %d, c: %d>"
-      start.pos_fname
-      start.pos_lnum start.pos_cnum
-      stop.pos_lnum stop.pos_cnum)
+let pp_loc fmt ((start, stop), file) =
+  let spos, epos = 
+    Lexing.(start.pos_cnum, stop.pos_cnum) in
+  let f = open_in file in
+  try
+    begin
+      let rec aux linenum curpos =
+        let line = input_line f in
+        let nextpos = curpos + (String.length line) + 1 in
+        if nextpos >= epos then
+          Format.fprintf fmt "<line %d: %s >" linenum line
+        else
+          aux (linenum + 1) nextpos
+        in
+      aux 1 0;
+      close_in f
+    end
+  with e ->
+    (close_in_noerr f; Format.fprintf fmt "???")
 
 let rec pp_varlist fmt : t_varlist -> unit = function
   | ([], []) -> ()
