@@ -165,15 +165,17 @@ let chkvar_init_unicity verbose debug : t_nodelist -> t_nodelist option =
 
 
     let h = Hashtbl.create Config.maxvar in
-    let add_var v =
+    let add_var n v =
       match v with
-      | IVar s -> Hashtbl.add h s 0
-      | BVar s -> Hashtbl.add h s 0
-      | RVar s -> Hashtbl.add h s 0
+      | IVar s -> Hashtbl.add h s n
+      | BVar s -> Hashtbl.add h s n
+      | RVar s -> Hashtbl.add h s n
     in
-    List.iter add_var (snd node.n_inputs);
-    List.iter add_var (snd node.n_outputs);
-    List.iter add_var (snd node.n_local_vars);
+    let add_var_in = add_var 1 in
+    let add_var_loc = add_var 0 in
+    List.iter add_var_in (snd node.n_inputs);
+    List.iter add_var_loc (snd node.n_outputs);
+    List.iter add_var_loc (snd node.n_local_vars);
 
 
     (** Usual Equations *)
