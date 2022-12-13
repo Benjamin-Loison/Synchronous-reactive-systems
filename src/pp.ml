@@ -51,6 +51,28 @@ let pp_expression =
             (pp_expression_list prefix) (ETuple (tt, exprs))
       | _ -> raise (MyTypeError "This exception should not have been raised.")
     in
+    let rec pp_equations prefix fmt equations = 
+      match equations with
+        | [] -> ()
+        | (patt, expr) :: eqs ->
+            Format.fprintf fmt "\t\t∗ Equation of type : %a\n\t\t  left side: %a\n\t\t  right side:\n%a\n%a"
+              debug_type_pp (Utils.type_exp expr)
+              pp_varlist patt
+              (pp_expression_aux prefix) expr
+              (pp_equations prefix) eqs
+    in
+    let rec pp_state_list prefix fmt states = 
+      match states with
+      | [] -> ()
+      | State(name, actions, condition, next)::q ->
+          Format.fprintf fmt "%s|%s->DO\n%a%sUNTIL\n%aTHEN%s"
+            prefix
+            name
+            (pp_equations prefix) actions
+            prefix
+            (pp_expression_aux (upd_prefix prefix)) condition
+            next
+    in
     match expression with
     | EWhen (_, e1, e2) ->
         begin
@@ -129,7 +151,10 @@ let pp_expression =
           (pp_expression_list prefix) args
     | ETuple _ ->
         Format.fprintf fmt "\t\t\t%sTuple\n%a" prefix
-          (pp_expression_list prefix) expression;
+          (pp_expression_list prefix) expression
+    | EAuto (_, _, states) ->
+        Format.fprintf fmt "\t\t\t%sAutomaton\n%a" prefix 
+          (pp_state_list prefix) states;
     in
   pp_expression_aux ""
 

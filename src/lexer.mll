@@ -30,6 +30,12 @@
       ("true", CONST_BOOL(true));
       ("false", CONST_BOOL(false));
       ("fby", BO_fby);
+      ("automaton", AUTOMAT);
+      ("match", MATCH);
+      ("with", WITH);
+      ("until", UNTIL);
+      ("do", DO);
+      ("done", DONE);
       ];
     fun s ->
       try Hashtbl.find h s with Not_found -> IDENT s
@@ -61,6 +67,7 @@ rule token = parse
   | '/'             { BO_div }
   | '%'             { BO_mod }
   | "->"            { BO_arrow }
+  | '|'             { CASE }
   | "--"            { read_single_line_comment lexbuf }
   | eof             { EOF }
   | _               { raise (Lexing_error (Format.sprintf "Error when seeing %s" (lexeme lexbuf)))}

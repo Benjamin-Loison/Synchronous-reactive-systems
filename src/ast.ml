@@ -48,12 +48,15 @@ type t_expression =
   | EConst of full_ty * const
   | ETuple of full_ty * (t_expression list)
   | EApp   of full_ty * t_node * t_expression
+  | EAuto  of full_ty * t_state * t_state list (* initial state and transitions *)
 
 and t_varlist = full_ty * (t_var list)
 
 and t_equation = t_varlist * t_expression
 
 and t_eqlist = t_equation list
+
+and t_state = | State of ident * t_eqlist * t_expression * ident
 
 and t_node =
   {

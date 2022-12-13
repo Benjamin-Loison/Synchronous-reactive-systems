@@ -2,6 +2,7 @@
   open Ast
   open Utils
 
+  let bloop () = Format.printf "bloop\n"
   let current_location () = symbol_start_pos (), symbol_end_pos ()
 
   let defined_nodes : (ident, t_node) Hashtbl.t = Hashtbl.create Config.maxvar
@@ -145,6 +146,14 @@
 %token IF
 %token THEN
 %token ELSE
+
+%token AUTOMAT
+%token CASE
+%token MATCH
+%token WITH
+%token DO
+%token DONE
+%token UNTIL
 
 %token<int> CONST_INT
 %token<bool> CONST_BOOL
@@ -383,3 +392,18 @@ ident_comma_list:
   | IDENT COMMA ident_comma_list { $1 :: $3 }
 ;
 
+automaton:
+  AUTOMAT transition_list { bloop(); EAuto( [], List.hd $2, $2 ) }
+;
+
+transition:
+  | CASE IDENT BO_arrow DO equations DONE { 
+      State($2, $5, EConst([TBool], CBool(true)), $2) }
+  | CASE IDENT BO_arrow DO equations UNTIL expr THEN IDENT {
+      State($2, $5, $7, $9)}
+;
+
+transition_list:
+  | transition { [$1] }
+  | transition transition_list { $1 :: $2 }
+;
