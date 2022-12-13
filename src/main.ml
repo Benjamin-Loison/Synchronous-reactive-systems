@@ -91,9 +91,9 @@ let _ =
   let passes = List.map (fun (pass: string) -> (pass,
     match Hashtbl.find_opt passes_table pass with
     | None ->
-      (exit_error (Format.sprintf "The pass %s does not exist." pass); exit 0)
+      (exit_error (Format.sprintf "The pass %s does not exist.\n" pass); exit 0)
     | Some f ->
-      (print_debug ("The pass "^pass^" has been selected."); f))) !passes in
+      (print_debug ("The pass "^pass^" has been selected.\n"); f))) !passes in
 
   print_debug (Format.asprintf "Initial AST (before executing any passes):\n%a"
                 Pp.pp_ast ast) ;
