@@ -115,3 +115,62 @@ let pre2vars =
   in
   expression_pass (Utils.somify aux)
 
+let chkvar_init_unicity : t_nodelist -> t_nodelist option =
+  let aux (node: t_node) : t_node option =
+    let h = Hashtbl.create Config.maxvar in
+    let add_var v =
+      match v with
+      | IVar s -> Hashtbl.add h s v
+      | BVar s -> Hashtbl.add h s v
+      | RVar s -> Hashtbl.add h s v
+    in
+    List.iter add_var (snd node.n_inputs);
+    List.iter add_var (snd node.n_outputs);
+    List.iter add_var (snd node.n_local_vars);
+    (** Remove the variables initialized in usual equations *)
+    let check_equations eqs =
+      List.fold_right
+        (fun (((_, patt), _): t_equation) (acc: bool) ->
+          if acc = false
+            then false
+            else
+              begin
+              (* assert(acc = true) *)
+              List.fold_right
+                (fun var acc ->
+                  if acc = false
+                    then false
+                    else
+                      begin
+                        let n = Utils.name_of_var var in
+                        match Hashtbl.find_opt h n with
+                        | None -> false
+                        | Some _ -> (Hashtbl.remove h n; true)
+                      end)
+                patt true
+              end)
+        node.n_equations true
+      in
+    if check_equations node.n_equations
+      then
+        begin
+          (** Remove the variables initialized in automata *)
+          if
+            List.fold_right
+              (fun (automata: t_automaton) acc ->
+                if acc = false
+                  then false
+                  else
+                    begin
+                      List.fold_right
+                        (fun (State(_, eqs, _, _): t_state) acc -> acc && check_equations eqs)
+                        (snd automata) true
+                    end)
+              node.n_automata true
+            then Some node
+            else None
+        end
+      else None
+  in
+  node_pass aux
+

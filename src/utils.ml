@@ -34,3 +34,8 @@ let type_exp : t_expression -> full_ty = function
   | EApp   (full_ty , _ , _) -> full_ty
 
 let somify f = fun e -> Some (f e)
+
+let name_of_var: t_var -> ident = function
+  | IVar s -> s
+  | BVar s -> s
+  | RVar s -> s

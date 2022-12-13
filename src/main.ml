@@ -25,7 +25,7 @@ let exec_passes ast verbose debug passes f =
 
 let _ =
   (** Usage and argument parsing. *)
-  let default_passes = ["pre2vars"] in
+  let default_passes = ["chkvar_init_unicity"; "pre2vars"] in
   let usage_msg =
     "Usage: main [-passes p1,...,pn] [-ast] [-verbose] [-debug] \
       [-o output_file] source_file\n" in
@@ -56,6 +56,7 @@ let _ =
   List.iter (fun (s, k) -> Hashtbl.add passes_table s k)
     [
       ("pre2vars", Passes.pre2vars);
+      ("chkvar_init_unicity", Passes.chkvar_init_unicity);
     ];
 
   (** Main functionality below *)
