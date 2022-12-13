@@ -34,7 +34,7 @@ let expression_pass f: t_nodelist -> t_nodelist option =
   in
   equation_pass aux
 
-let pre2vars =
+let pre2vars verbose debug =
   let rec all_pre expr =
     match expr with
     | EMonOp (ty, MOp_pre, expr) -> all_pre expr
@@ -115,62 +115,80 @@ let pre2vars =
   in
   expression_pass (Utils.somify aux)
 
-let chkvar_init_unicity : t_nodelist -> t_nodelist option =
+let chkvar_init_unicity verbose debug : t_nodelist -> t_nodelist option =
   let aux (node: t_node) : t_node option =
+    let incr_aux h n =
+      match Hashtbl.find_opt h n with
+      | None -> failwith "todo, should not happend."
+      | Some num -> Hashtbl.replace h n (num + 1)
+      in
+    let incr_eq h (((_, patt), _): t_equation) =
+      List.iter (fun v -> incr_aux h (Utils.name_of_var v)) patt
+      in
+    let rec incr_eqlist h = function
+      | [] -> ()
+      | eq :: eqs -> (incr_eq h eq; incr_eqlist h eqs)
+      in
+
+    let incr_branch h (State (_, eqs, _, _): t_state) = incr_eqlist h eqs in
+
+    let incr_automata h ((_, states): t_automaton) =
+      let acc = Hashtbl.copy h in
+        List.iter
+          (fun st ->
+            let h_st = Hashtbl.copy h in
+            incr_branch h_st st;
+            Hashtbl.iter
+              (fun varname num' ->
+                match Hashtbl.find_opt acc varname with
+                | None -> failwith "non!"
+                | Some num -> Hashtbl.replace acc varname (Int.max num num')
+                ) h_st) states;
+          Hashtbl.iter (fun v n -> Hashtbl.replace h v n) acc
+        in
+
+    let check_now h : bool=
+      Hashtbl.fold
+        (fun varname num old_res ->
+          if num > 1
+            then (verbose (Format.asprintf "%s initialized twice!" varname); false)
+            else old_res) h true
+      in
+    (*let purge_initialized h =
+      Hashtbl.iter
+        (fun varname num ->
+          if num > 0
+            then (verbose (Format.asprintf "Purging %s" varname); Hashtbl.remove h varname)
+            else ()) h
+      in*)
+
+
+
     let h = Hashtbl.create Config.maxvar in
     let add_var v =
       match v with
-      | IVar s -> Hashtbl.add h s v
-      | BVar s -> Hashtbl.add h s v
-      | RVar s -> Hashtbl.add h s v
+      | IVar s -> Hashtbl.add h s 0
+      | BVar s -> Hashtbl.add h s 0
+      | RVar s -> Hashtbl.add h s 0
     in
     List.iter add_var (snd node.n_inputs);
     List.iter add_var (snd node.n_outputs);
     List.iter add_var (snd node.n_local_vars);
-    (** Remove the variables initialized in usual equations *)
-    let check_equations eqs =
-      List.fold_right
-        (fun (((_, patt), _): t_equation) (acc: bool) ->
-          if acc = false
-            then false
-            else
-              begin
-              (* assert(acc = true) *)
-              List.fold_right
-                (fun var acc ->
-                  if acc = false
-                    then false
-                    else
-                      begin
-                        let n = Utils.name_of_var var in
-                        match Hashtbl.find_opt h n with
-                        | None -> false
-                        | Some _ -> (Hashtbl.remove h n; true)
-                      end)
-                patt true
-              end)
-        node.n_equations true
-      in
-    if check_equations node.n_equations
-      then
+
+
+    (** Usual Equations *)
+    incr_eqlist h node.n_equations;
+    if check_now h = false
+      then None
+      else
         begin
-          (** Remove the variables initialized in automata *)
-          if
-            List.fold_right
-              (fun (automata: t_automaton) acc ->
-                if acc = false
-                  then false
-                  else
-                    begin
-                      List.fold_right
-                        (fun (State(_, eqs, _, _): t_state) acc -> acc && check_equations eqs)
-                        (snd automata) true
-                    end)
-              node.n_automata true
+          List.iter (* 0. *) (incr_automata h) node.n_automata;
+          if check_now h
             then Some node
             else None
         end
-      else None
+    (** never purge -> failwith never executed! purge_initialized h; *)
+
   in
   node_pass aux
 

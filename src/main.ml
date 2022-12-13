@@ -14,7 +14,7 @@ let exec_passes ast verbose debug passes f =
     | [] ->  f ast
     | (n, p) :: passes ->
         verbose (Format.asprintf "Executing pass %s:\n" n);
-        match p ast with
+        match p verbose debug ast with
         | None -> (exit_error ("Error while in the pass "^n^".\n"); exit 0)
         | Some ast -> (
         debug (Format.asprintf "Current AST (after %s):\n%a\n" n Pp.pp_ast ast);
@@ -32,6 +32,7 @@ let _ =
   let verbose = ref false in
   let debug = ref false in
   let ppast = ref false in
+  let nopopt = ref false in
   let passes = ref [] in
   let source_file = ref "" in
   let output_file = ref "out.c" in
@@ -39,6 +40,7 @@ let _ =
   let speclist =
     [
       ("-ast", Arg.Set ppast, "Only print the AST of the input file");
+      ("-nop", Arg.Set nopopt, "Only computes the AST and execute the passes");
       ("-verbose", Arg.Set verbose, "Output some debug information");
       ("-debug", Arg.Set debug, "Output a lot of debug information");
       ("-p", Arg.String (fun s -> passes := s :: !passes),
@@ -52,7 +54,7 @@ let _ =
   let print_debug = print_debug !debug in
 
   (** Definition of the passes table *)
-  let passes_table : (string,  t_nodelist -> t_nodelist option) Hashtbl.t = Hashtbl.create 100 in
+  let passes_table  = Hashtbl.create 100 in
   List.iter (fun (s, k) -> Hashtbl.add passes_table s k)
     [
       ("pre2vars", Passes.pre2vars);
@@ -65,7 +67,7 @@ let _ =
     let inchan = open_in !source_file in
     try
       begin
-        let _ = Parsing.set_trace true in
+        (**let _ = Parsing.set_trace true in*)
       let res = Parser.main Lexer.token (Lexing.from_channel inchan) in
       close_in inchan; res
       end
@@ -103,6 +105,9 @@ let _ =
     begin
     if !ppast
       then (Format.printf "%a" Pp.pp_ast)
-      else (Format.printf "%a" Ast_to_c.ast_to_c)
+      else (
+        if !nopopt
+          then (fun _ -> ())
+          else Format.printf "%a" Ast_to_c.ast_to_c)
     end
 
