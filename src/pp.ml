@@ -142,14 +142,32 @@ let rec pp_equations fmt: t_eqlist -> unit = function
         pp_expression expr
         pp_equations eqs
 
+let rec pp_automata fmt: t_automaton list -> unit = function
+  | [] -> ()
+  | (_, trans)::tail ->
+      Format.fprintf fmt "\t\t* Automaton : \n%a%a"
+      pp_translist trans
+      pp_automata tail
+
+and pp_translist fmt: t_state list -> unit = function
+  | [] -> ()
+  | State(name, eqs, cond, next)::q ->
+      Format.fprintf fmt "\t\t\t|%s -> do\n%a\n\t\t\tdone until %a \t\t\tthen %s\n%a"
+      name
+      pp_equations eqs
+      pp_expression cond
+      next
+      pp_translist q
+
 let pp_node fmt node =
   Format.fprintf fmt "\t∗ Node name : %s\n\t  Inputs:\n%a\n\t  Outputs:\n%a\n\t\
-    \ \ Local variables:\n%a\n\t  Equations:\n%a\n"
+    \ \ Local variables:\n%a\n\t  Equations:\n%a\n\t  Automata:\n%a\n"
                  node.n_name
     pp_varlist node.n_inputs
     pp_varlist node.n_outputs
     pp_varlist node.n_local_vars
     pp_equations node.n_equations
+    pp_automata node.n_automata
 
 let rec pp_nodes fmt nodes =
   match nodes with
