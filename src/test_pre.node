@@ -1,0 +1,4 @@
+node n2 (i: int) returns (o: bool);
+let
+    o = pre (true and pre( i = pre(pre(i))));
+tel

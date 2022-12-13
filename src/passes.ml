@@ -34,10 +34,60 @@ let expression_pass f: t_nodelist -> t_nodelist option =
   equation_pass aux
 
 let pre2vars =
-  let rec aux = function
-    | EVar   (ty, v) -> EVar (ty, v)
+  let rec all_pre expr =
+    match expr with
+    | EMonOp (ty, MOp_pre, expr) -> all_pre expr
+    | EMonOp _ -> false
+    | EVar _ -> true
+    | _ -> false
+  in
+  let rec pre_push expr : t_expression =
+    match expr with
+    | EVar _ -> EMonOp (Utils.type_exp expr, MOp_pre, expr)
+    | EConst _ -> expr (** pre(c) = c for any constant c *)
     | EMonOp (ty, mop, expr) ->
-               let expr = aux expr in EMonOp (ty, mop, expr)
+      begin
+        match mop with
+        | MOp_pre ->
+          if all_pre expr
+            then EMonOp (ty, mop, EMonOp (ty, mop, expr))
+            else pre_push (pre_push expr)
+        | _ -> EMonOp (ty, mop, pre_push expr)
+      end
+    | EBinOp (ty, bop, expr, expr') ->
+        let expr = pre_push expr in let expr' = pre_push expr' in
+        EBinOp (ty, bop, expr, expr')
+    | ETriOp (ty, top, expr, expr', expr'') ->
+        let expr = pre_push expr in let expr' = pre_push expr' in
+        let expr'' = pre_push expr'' in
+        ETriOp (ty, top, expr, expr', expr'')
+    | EComp  (ty, cop, expr, expr') ->
+        let expr = pre_push expr in let expr' = pre_push expr' in
+        EComp (ty, cop, expr, expr')
+    | EWhen  (ty, expr, expr') ->
+        let expr = pre_push expr in let expr' = pre_push expr' in
+        EWhen (ty, expr, expr')
+    | EReset (ty, expr, expr') ->
+        let expr = pre_push expr in let expr' = pre_push expr' in
+        EReset (ty, expr, expr')
+    | ETuple (ty, elist) ->
+        let elist =
+          List.fold_right (fun expr acc -> (pre_push expr) :: acc) elist [] in
+        ETuple (ty, elist)
+    | EApp   (ty, node, arg) ->
+        let arg = pre_push arg in
+        EApp (ty, node, arg)
+    | EAuto _ -> failwith "toto"
+  in
+  let rec aux (expr: t_expression) =
+    match expr with
+    | EVar   _ -> expr
+    | EMonOp (ty, mop, expr) ->
+      begin
+        match mop with
+        | MOp_pre -> pre_push expr
+        | _ -> let expr = aux expr in EMonOp (ty, mop, expr)
+      end
     | EBinOp (ty, bop, expr, expr') ->
         let expr = aux expr in let expr' = aux expr' in
         EBinOp (ty, bop, expr, expr')
@@ -62,6 +112,7 @@ let pre2vars =
     | EApp   (ty, node, arg) ->
         let arg = aux arg in
         EApp (ty, node, arg)
+    | EAuto _ -> failwith "todo"
   in
   expression_pass (Utils.somify aux)
 

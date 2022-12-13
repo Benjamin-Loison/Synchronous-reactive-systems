@@ -6,14 +6,8 @@ tel
 node undiag_test (i: int) returns (o : bool);
 var l1, l2: int; l3: int;
 let
-	l3 = 1 -> 0;
+	l3 = (pre (1)) -> 0;
 	(l1, l2) = diagonal_int(i);
 	o = (not (not (l1 = l2))) and (l1 = l2) and true;
 tel
 
-node automaton () returns (o : bool);
-let
-	automaton
-	| Incr -> do o = (pre o) + 1 done
-	| Decr -> do o = (pre o) - 1 done
-tel

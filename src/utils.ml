@@ -32,5 +32,7 @@ let type_exp : t_expression -> full_ty = function
   | EConst (full_ty , _) -> full_ty
   | ETuple (full_ty , _) -> full_ty
   | EApp   (full_ty , _ , _) -> full_ty
+  | EAuto _ -> raise (MyParsingError ("bloup", Parsing.(symbol_start_pos(),
+  symbol_end_pos())))
 
 let somify f = fun e -> Some (f e)
