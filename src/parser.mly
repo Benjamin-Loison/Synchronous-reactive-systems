@@ -195,7 +195,12 @@ node_content:
           n_automata = aut;
           n_inputs_type = t_in;
           n_outputs_type = t_out; } in
-      Hashtbl.add defined_nodes node_name n; n };
+      if Hashtbl.find_opt defined_nodes node_name <> None
+        then raise (MyParsingError
+                    (Format.asprintf "The node %s is already defined."
+                                      node_name,
+                    current_location()))
+        else Hashtbl.add defined_nodes node_name n; n };
 
 node_body:
   | /* empty */ { ([], []) }
