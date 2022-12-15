@@ -25,7 +25,8 @@ let exec_passes ast main_fn verbose debug passes f =
 
 let _ =
   (** Usage and argument parsing. *)
-  let default_passes = ["chkvar_init_unicity"; "pre2vars"; "linearization"] in
+  let default_passes = ["pre2vars"; "linearization"; "equations_ordering"] in
+  let sanity_passes = ["chkvar_init_unicity"; "check_typing"] in
   let usage_msg =
     "Usage: main [-passes p1,...,pn] [-ast] [-verbose] [-debug] \
       [-o output_file] [-m main_function] source_file\n" in
@@ -37,10 +38,14 @@ let _ =
   let passes = ref [] in
   let main_fn = ref "main" in
   let source_file = ref "" in
+  let testopt = ref false in
   let output_file = ref "out.c" in
   let anon_fun filename = source_file := filename in
   let speclist =
     [
+      ("-test", Arg.Set testopt, "Runs the sanity passes not only at the \
+                                begining of the compilation, but also after \
+                                each pass altering the AST.");
       ("-ast", Arg.Set ppast, "Only print the AST of the input file");
       ("-nop", Arg.Set nopopt, "Only computes the AST and execute the passes");
       ("-verbose", Arg.Set verbose, "Output some debug information");
@@ -66,6 +71,8 @@ let _ =
       ("pre2vars", Passes.pre2vars);
       ("chkvar_init_unicity", Passes.chkvar_init_unicity);
       ("linearization", Passes.pass_linearization);
+      ("equations_ordering", Passes.pass_eq_reordering);
+      ("check_typing", Passes.pass_typing);
     ];
 
   (** Main functionality below *)
@@ -99,12 +106,19 @@ let _ =
       end
     in
 
-  let passes = List.map (fun (pass: string) -> (pass,
-    match Hashtbl.find_opt passes_table pass with
-    | None ->
-      (exit_error (Format.sprintf "The pass %s does not exist.\n" pass); exit 0)
-    | Some f ->
-      (print_debug ("The pass "^pass^" has been selected.\n"); f))) !passes in
+  let passes =
+    List.map
+      (fun (pass: string) -> (pass,
+        match Hashtbl.find_opt passes_table pass with
+        | None ->
+          (exit_error (Format.sprintf "The pass %s does not exist.\n" pass); exit 0)
+        | Some f ->
+          (print_debug ("The pass "^pass^" has been selected.\n"); f)))
+      (sanity_passes @
+        if !testopt
+          then List.flatten (List.map (fun p -> p :: sanity_passes) !passes)
+          else !passes)
+    in
 
   print_debug (Format.asprintf "Initial AST (before executing any passes):\n%a"
                 Pp.pp_ast ast) ;

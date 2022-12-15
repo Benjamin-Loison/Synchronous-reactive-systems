@@ -1,4 +1,7 @@
 node diagonal_int (i: int) returns (o1, o2 : int);
+var y: int;
 let
-	(o1, o2) = (i, i);
+    o2 = y;
+    y = i;
+    o1 = i;
 tel

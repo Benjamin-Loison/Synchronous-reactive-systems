@@ -136,7 +136,8 @@ let pp_expression =
 let rec pp_equations fmt: t_eqlist -> unit = function
   | [] -> ()
   | (patt, expr) :: eqs ->
-      Format.fprintf fmt "\t\t∗ Equation of type : %a\n\t\t  left side: %a\n\t\t  right side:\n%a\n%a"
+      Format.fprintf fmt "\t\t∗ Equation of type : %a\n\t\t  left side: %a\n\
+                          \t\t  right side:\n%a\n\n%a"
         debug_type_pp (Utils.type_exp expr)
         pp_varlist patt
         pp_expression expr

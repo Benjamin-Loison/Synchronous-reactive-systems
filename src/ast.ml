@@ -69,8 +69,6 @@ and t_node =
     n_local_vars: t_varlist;
     n_equations: t_eqlist;
     n_automata: t_autolist;
-    n_inputs_type : full_ty;
-    n_outputs_type : full_ty;
   }
 
 type t_nodelist = t_node list

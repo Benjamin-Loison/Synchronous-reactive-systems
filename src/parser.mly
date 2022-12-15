@@ -198,9 +198,7 @@ node_content:
           n_outputs    = (t_out, e_out);
           n_local_vars = $10;
           n_equations  = eqs;
-          n_automata = aut;
-          n_inputs_type = t_in;
-          n_outputs_type = t_out; } in
+          n_automata = aut; } in
       if Hashtbl.find_opt defined_nodes node_name <> None
         then raise (MyParsingError
                     (Format.asprintf "The node %s is already defined."
@@ -386,8 +384,8 @@ expr:
       { let name = $1 in
         let node = fetch_node name in
         let args = $3 in
-        if type_exp args = node.n_inputs_type
-          then EApp (node.n_outputs_type, fetch_node name, args)
+        if type_exp args = fst node.n_inputs
+          then EApp (fst node.n_outputs, fetch_node name, args)
           else raise (MyParsingError ("The application does not type check!",
                       current_location()))
          }

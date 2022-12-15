@@ -22,7 +22,12 @@ let rec list_chk v = function
   | [] -> false
   | h :: t -> if h = v then true else list_chk v t
 
-exception MyParsingError of (string * Ast.location)
+exception MyParsingError of (string * location)
+
+let type_const = function
+  | CReal _ -> [TReal]
+  | CInt  _ -> [TInt ]
+  | CBool _ -> [TBool]
 
 let type_var (v: t_var) =
     match v with
@@ -60,3 +65,23 @@ let rec fresh_var_name (l: t_varlist) n : ident =
   if List.filter (fun v -> name_of_var v = name) (snd l) = []
     then name
     else fresh_var_name l n
+
+let vars_of_patt patt = List.map name_of_var (snd patt)
+
+let rec vars_of_expr (expr: t_expression) : ident list =
+  match expr with
+  | EConst _ -> []
+  | EVar   (_, v) -> [name_of_var v]
+    (** pre (e) does not rely on anything in this round *)
+  | EMonOp (_, MOp_pre, _) -> []
+  | EApp (_, _, e) | EMonOp (_, _, e) -> vars_of_expr e
+  | EComp  (_, _, e, e') | EReset (_, e, e') | EBinOp (_, _, e, e')
+  | EWhen  (_, e, e') ->
+      (vars_of_expr e) @ (vars_of_expr e')
+  | ETriOp (_, _, e, e', e'') ->
+      (vars_of_expr e) @ (vars_of_expr e') @ (vars_of_expr e'')
+  | ETuple (_, l) -> List.flatten (List.map vars_of_expr l)
+
+let rec varlist_concat (l1: t_varlist) (l2: t_varlist): t_varlist =
+  (fst l1 @ fst l2, snd l1 @ snd l2)
+
