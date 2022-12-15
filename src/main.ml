@@ -26,7 +26,7 @@ let exec_passes ast main_fn verbose debug passes f =
 let _ =
   (** Usage and argument parsing. *)
   let default_passes = ["pre2vars"; "linearization"; "equations_ordering"] in
-  let sanity_passes = ["chkvar_init_unicity"] in
+  let sanity_passes = ["chkvar_init_unicity"; "check_typing"] in
   let usage_msg =
     "Usage: main [-passes p1,...,pn] [-ast] [-verbose] [-debug] \
       [-o output_file] [-m main_function] source_file\n" in
@@ -72,6 +72,7 @@ let _ =
       ("chkvar_init_unicity", Passes.chkvar_init_unicity);
       ("linearization", Passes.pass_linearization);
       ("equations_ordering", Passes.pass_eq_reordering);
+      ("check_typing", Passes.pass_typing);
     ];
 
   (** Main functionality below *)

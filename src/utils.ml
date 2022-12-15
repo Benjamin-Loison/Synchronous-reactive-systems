@@ -24,6 +24,11 @@ let rec list_chk v = function
 
 exception MyParsingError of (string * location)
 
+let type_const = function
+  | CReal _ -> [TReal]
+  | CInt  _ -> [TInt ]
+  | CBool _ -> [TBool]
+
 let type_var (v: t_var) =
     match v with
     | IVar _ -> [TInt]
@@ -76,4 +81,7 @@ let rec vars_of_expr (expr: t_expression) : ident list =
   | ETriOp (_, _, e, e', e'') ->
       (vars_of_expr e) @ (vars_of_expr e') @ (vars_of_expr e'')
   | ETuple (_, l) -> List.flatten (List.map vars_of_expr l)
+
+let rec varlist_concat (l1: t_varlist) (l2: t_varlist): t_varlist =
+  (fst l1 @ fst l2, snd l1 @ snd l2)
 

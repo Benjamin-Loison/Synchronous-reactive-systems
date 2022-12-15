@@ -18,8 +18,6 @@ let equation_pass (f: t_equation -> t_equation option) ast: t_nodelist option =
                         n_local_vars   = node.n_local_vars;
                         n_equations    = eqs;
                         n_automata     = node.n_automata;
-                        n_inputs_type  = node.n_inputs_type;
-                        n_outputs_type = node.n_outputs_type;
                        }
     in
   node_pass aux ast
@@ -32,4 +30,4 @@ let expression_pass f: t_nodelist -> t_nodelist option =
   in
   equation_pass aux
 
-exception EquationOrderingIssue
+exception PassExn of string
