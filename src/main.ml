@@ -45,7 +45,7 @@ let _ =
     [
       ("-test", Arg.Set testopt, "Runs the sanity passes not only at the \
                                 begining of the compilation, but also after \
-                                each pass altering then AST.");
+                                each pass altering the AST.");
       ("-ast", Arg.Set ppast, "Only print the AST of the input file");
       ("-nop", Arg.Set nopopt, "Only computes the AST and execute the passes");
       ("-verbose", Arg.Set verbose, "Output some debug information");

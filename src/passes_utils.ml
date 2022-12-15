@@ -32,4 +32,4 @@ let expression_pass f: t_nodelist -> t_nodelist option =
   in
   equation_pass aux
 
-exception EquatiobnOrderingIssue
+exception EquationOrderingIssue

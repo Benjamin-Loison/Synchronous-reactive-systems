@@ -1,2 +1,10 @@
 _build
 tags
+beamer.aux
+beamer.log
+beamer.nav
+beamer.out
+beamer.pdf
+beamer.snm
+beamer.toc
+texput.log

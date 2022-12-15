@@ -194,18 +194,6 @@ let pass_linearization verbose debug main_fn =
   node_pass node_lin
 
 let pass_eq_reordering verbose debug main_fn ast =
-  let vars_of_patt patt = List.map Utils.name_of_var (snd patt) in
-  let rec vars_of_expr (expr: t_expression) : ident list =
-    match expr with
-    | EConst _ -> []
-    | EVar   (_, v) -> [Utils.name_of_var v]
-    | EApp (_, _, e) | EMonOp (_, _, e) -> vars_of_expr e
-    | EComp  (_, _, e, e') | EReset (_, e, e') | EBinOp (_, _, e, e') | EWhen  (_, e, e')
-        -> (vars_of_expr e) @ (vars_of_expr e')
-    | ETriOp (_, _, e, e', e'') ->
-        (vars_of_expr e) @ (vars_of_expr e') @ (vars_of_expr e'')
-    | ETuple (_, l) -> List.flatten (List.map vars_of_expr l)
-    in
   let rec pick_equations init_vars eqs remaining_equations =
     match remaining_equations with
     | [] -> Some eqs
@@ -215,14 +203,16 @@ let pass_eq_reordering verbose debug main_fn ast =
                 (fun (patt, expr) ->
                   List.for_all
                     (fun v -> List.mem v init_vars)
-                    (vars_of_expr expr))
+                    (Utils.vars_of_expr expr))
                 remaining_equations with
-        | [] -> raise EquatiobnOrderingIssue
-        | (p, e) :: _ ->
-            pick_equations
-              (init_vars @ (vars_of_patt p))
-              ((p, e) :: eqs)
-              (List.filter (fun eq -> eq <> (p, e)) remaining_equations)
+        | [] -> raise EquationOrderingIssue
+        | h :: t ->
+            let init_vars =
+              List.fold_left
+                (fun acc vs ->
+                  acc @ (Utils.vars_of_patt (fst vs))) init_vars (h :: t) in
+            pick_equations init_vars (eqs@(h :: t))
+              (List.filter (fun eq -> List.for_all (fun e -> eq <> e) (h :: t)) remaining_equations)
       end
     in
   let node_eq_reorganising  (node: t_node): t_node option =
