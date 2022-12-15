@@ -173,7 +173,6 @@ let rec tpl debug ((pat, exp): t_equation) =
 
 let pass_linearization verbose debug main_fn =
   let node_lin (node: t_node): t_node option =
-    let new_locvars = node.n_local_vars in
     let new_equations = List.flatten
       begin
       List.map
