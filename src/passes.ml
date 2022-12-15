@@ -1,40 +1,9 @@
 (** This file contains simplification passes for our Lustre-like AST *)
 
 open Ast
+open Passes_utils
 
-(** [node_pass] is an auxiliary function used to write passes: it will iterate
-  * the function passed as argument on all the nodes of the program *)
-let node_pass f ast: t_nodelist option =
-  Utils.list_map_option f ast
-
-(** [equation_pass] is an auxiliary function used to write passes: it will
-  * iterate the function passed as argument on all the equations of the
-  * program *)
-let equation_pass f ast: t_nodelist option =
-  let aux (node: t_node): t_node option =
-    match Utils.list_map_option f node.n_equations with
-    | None -> None
-    | Some eqs -> Some {n_name         = node.n_name;
-                        n_inputs       = node.n_inputs;
-                        n_outputs      = node.n_outputs;
-                        n_local_vars   = node.n_local_vars;
-                        n_equations    = eqs;
-                        n_automata     = node.n_automata;
-                        n_inputs_type  = node.n_inputs_type;
-                        n_outputs_type = node.n_outputs_type;
-                       }
-    in
-  node_pass aux ast
-
-let expression_pass f: t_nodelist -> t_nodelist option =
-  let aux (patt, expr) =
-    match f expr with
-    | None -> None
-    | Some expr -> Some (patt, expr)
-  in
-  equation_pass aux
-
-let pre2vars verbose debug =
+let pre2vars verbose debug main_fn =
   let rec all_pre expr =
     match expr with
     | EMonOp (ty, MOp_pre, expr) -> all_pre expr
@@ -115,7 +84,7 @@ let pre2vars verbose debug =
   in
   expression_pass (Utils.somify aux)
 
-let chkvar_init_unicity verbose debug : t_nodelist -> t_nodelist option =
+let chkvar_init_unicity verbose debug main_fn : t_nodelist -> t_nodelist option =
   let aux (node: t_node) : t_node option =
     let incr_aux h n =
       match Hashtbl.find_opt h n with
@@ -129,9 +98,7 @@ let chkvar_init_unicity verbose debug : t_nodelist -> t_nodelist option =
       | [] -> ()
       | eq :: eqs -> (incr_eq h eq; incr_eqlist h eqs)
       in
-
     let incr_branch h (State (_, eqs, _, _): t_state) = incr_eqlist h eqs in
-
     let incr_automata h ((_, states): t_automaton) =
       let acc = Hashtbl.copy h in
         List.iter
@@ -146,7 +113,6 @@ let chkvar_init_unicity verbose debug : t_nodelist -> t_nodelist option =
                 ) h_st) states;
           Hashtbl.iter (fun v n -> Hashtbl.replace h v n) acc
         in
-
     let check_now h : bool=
       Hashtbl.fold
         (fun varname num old_res ->
@@ -161,9 +127,6 @@ let chkvar_init_unicity verbose debug : t_nodelist -> t_nodelist option =
             then (verbose (Format.asprintf "Purging %s" varname); Hashtbl.remove h varname)
             else ()) h
       in*)
-
-
-
     let h = Hashtbl.create Config.maxvar in
     let add_var n v =
       match v with
@@ -176,8 +139,6 @@ let chkvar_init_unicity verbose debug : t_nodelist -> t_nodelist option =
     List.iter add_var_in (snd node.n_inputs);
     List.iter add_var_loc (snd node.n_outputs);
     List.iter add_var_loc (snd node.n_local_vars);
-
-
     (** Usual Equations *)
     incr_eqlist h node.n_equations;
     if check_now h = false
@@ -190,7 +151,43 @@ let chkvar_init_unicity verbose debug : t_nodelist -> t_nodelist option =
             else None
         end
     (** never purge -> failwith never executed! purge_initialized h; *)
-
   in
   node_pass aux
 
+let pass_linearization verbose debug main_fn =
+  let node_lin (node: t_node): t_node option =
+    let rec tpl ((pat, exp): t_equation) =
+      match exp with
+      | ETuple (_, hexps :: texps) ->
+          let p1, p2 =
+            Utils.list_select
+              (List.length (Utils.type_exp hexps))
+              (snd pat) in
+          let t1 = List.flatten (List.map Utils.type_var p1) in
+          let t2 = List.flatten (List.map Utils.type_var p2) in
+          ((t1, p1), hexps)
+            :: (tpl ((t2, p2),
+                ETuple (List.flatten (List.map Utils.type_exp texps), texps)))
+      | ETuple (_, []) -> []
+      | _ -> [(pat, exp)]
+    in
+    let new_locvars = node.n_local_vars in
+    let new_equations = List.flatten
+      begin
+      List.map
+        tpl
+        node.n_equations
+      end in
+    Some
+      {
+        n_name = node.n_name;
+        n_inputs = node.n_inputs;
+        n_outputs = node.n_outputs;
+        n_local_vars = new_locvars;
+        n_equations = new_equations;
+        n_automata = node.n_automata;
+        n_inputs_type = node.n_inputs_type;
+        n_outputs_type = node.n_outputs_type;
+      }
+  in
+  node_pass node_lin

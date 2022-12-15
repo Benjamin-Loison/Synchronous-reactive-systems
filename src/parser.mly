@@ -161,6 +161,12 @@
 %token<bool> CONST_BOOL
 %token<Ast.real> CONST_REAL
 
+%left MO_not
+%left MO_pre
+%left PLUS
+%left MINUS
+%left BO_and BO_or BO_mul BO_div BO_mod BO_arrow BO_fby TO_merge
+
 /* The Entry Point */
 %start main
 %type <Ast.t_nodelist> main
