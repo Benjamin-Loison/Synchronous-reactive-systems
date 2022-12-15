@@ -197,6 +197,7 @@ let rec pp_equations node_name fmt: t_eqlist -> unit = function
         (pp_expression node_name) expr
         (pp_equations node_name) eqs
 
+(* By prepending to the `Format.formatter` `fmt` we could just declare these arrays once with a size of the maximum `reset_expressions_counter` *)
 let pp_resvars reset_expressions_counter =
     (* use the fact that any boolean and any integer can be encoded as a float *)
     Format.sprintf "float tmp_reset[%i], init[%i];" reset_expressions_counter reset_expressions_counter
