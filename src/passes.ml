@@ -159,6 +159,7 @@ let pass_linearization verbose debug main_fn =
     let rec tpl ((pat, exp): t_equation) =
       match exp with
       | ETuple (_, hexps :: texps) ->
+          debug "An ETuple has been recognized, inlining...";
           let p1, p2 =
             Utils.list_select
               (List.length (Utils.type_exp hexps))
@@ -191,3 +192,43 @@ let pass_linearization verbose debug main_fn =
       }
   in
   node_pass node_lin
+
+let pass_eq_reordering verbose debug main_fn ast =
+  let vars_of_patt patt = List.map Utils.name_of_var (snd patt) in
+  let rec vars_of_expr (expr: t_expression) : ident list =
+    match expr with
+    | EConst _ -> []
+    | EVar   (_, v) -> [Utils.name_of_var v]
+    | EApp (_, _, e) | EMonOp (_, _, e) -> vars_of_expr e
+    | EComp  (_, _, e, e') | EReset (_, e, e') | EBinOp (_, _, e, e') | EWhen  (_, e, e')
+        -> (vars_of_expr e) @ (vars_of_expr e')
+    | ETriOp (_, _, e, e', e'') ->
+        (vars_of_expr e) @ (vars_of_expr e') @ (vars_of_expr e'')
+    | ETuple (_, l) -> List.flatten (List.map vars_of_expr l)
+    in
+  let rec pick_equations init_vars eqs remaining_equations =
+    match remaining_equations with
+    | [] -> Some eqs
+    | _ ->
+      begin
+        match List.filter
+                (fun (patt, expr) ->
+                  List.for_all
+                    (fun v -> List.mem v init_vars)
+                    (vars_of_expr expr))
+                remaining_equations with
+        | [] -> raise EquatiobnOrderingIssue
+        | (p, e) :: _ ->
+            pick_equations
+              (init_vars @ (vars_of_patt p))
+              ((p, e) :: eqs)
+              (List.filter (fun eq -> eq <> (p, e)) remaining_equations)
+      end
+    in
+  let node_eq_reorganising  (node: t_node): t_node option =
+    let init_vars = List.map Utils.name_of_var (snd node.n_inputs) in
+    match pick_equations init_vars [] node.n_equations with
+    | None -> None
+    | Some eqs -> Some { node with n_equations = eqs }
+ in
+  node_pass node_eq_reorganising ast

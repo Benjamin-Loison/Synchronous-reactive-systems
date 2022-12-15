@@ -31,3 +31,5 @@ let expression_pass f: t_nodelist -> t_nodelist option =
     | Some expr -> Some (patt, expr)
   in
   equation_pass aux
+
+exception EquatiobnOrderingIssue
