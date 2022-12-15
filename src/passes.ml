@@ -89,7 +89,7 @@ let chkvar_init_unicity verbose debug main_fn : t_nodelist -> t_nodelist option 
 let aux (node: t_node) : t_node option =
   let incr_aux h n =
     match Hashtbl.find_opt h n with
-    | None -> failwith "todo, should not happend."
+    | None -> failwith "todo, should not happened."
     | Some num -> Hashtbl.replace h n (num + 1)
     in
   let incr_eq h (((_, patt), _): t_equation) =
@@ -109,7 +109,7 @@ let aux (node: t_node) : t_node option =
           Hashtbl.iter
             (fun varname num' ->
               match Hashtbl.find_opt acc varname with
-              | None -> failwith "non!"
+              | None -> failwith "no!"
               | Some num -> Hashtbl.replace acc varname (Int.max num num')
               ) h_st) states;
         Hashtbl.iter (fun v n -> Hashtbl.replace h v n) acc
