@@ -408,21 +408,22 @@ let automaton_translation debug automaton =
 let automata_trans_pass debug (node:t_node) : t_node option=
 
   let rec aux automaton = match automaton with
-  | [] -> [], []
+  | [] -> [], [], []
   | a::q -> 
       let eq, var = automaton_translation debug a
-      and tail_eq, tail_var = aux q in
-      eq@tail_eq, var::tail_var
+      and tail_eq, tail_var, tail_type = aux q in
+      eq@tail_eq, var::tail_var, TInt::tail_type
   in
 
-  let eqs, vars = aux node.n_automata in
+  let eqs, vars, new_ty = aux node.n_automata in
+  let ty, loc_vars = node.n_local_vars in
   Some
     {
       n_name = node.n_name;
       n_inputs = node.n_inputs;
       n_outputs = node.n_outputs;
-      n_local_vars = vars@node.n_local_vars;
-      n_equations = eqs@new_equations;
+      n_local_vars = (new_ty@ty, vars@loc_vars);
+      n_equations = eqs@node.n_equations;
       n_automata = node.n_automata;
     }
 
