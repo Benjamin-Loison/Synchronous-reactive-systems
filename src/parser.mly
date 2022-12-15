@@ -199,18 +199,26 @@ node_content:
           n_local_vars = $10;
           n_equations  = eqs;
           n_automata = aut; } in
-      if Hashtbl.find_opt defined_nodes node_name <> None
+      if List.length (snd $10) = 0 && node_name <> "main"
         then raise (MyParsingError
-                    (Format.asprintf "The node %s is already defined."
-                                      node_name,
+                    (Format.asprintf "The node %s should have arguments."
+                      node_name,
                     current_location()))
         else
-          if vars_distinct e_in e_out (snd $10)
-            then (Hashtbl.add defined_nodes node_name n; n)
-            else raise (MyParsingError
-                        ("There is a conflict between the names of local, input \
-                        or output variables.",
-                        current_location())) };
+          begin
+          if Hashtbl.find_opt defined_nodes node_name <> None
+            then raise (MyParsingError
+                        (Format.asprintf "The node %s is already defined."
+                                          node_name,
+                        current_location()))
+            else
+              if vars_distinct e_in e_out (snd $10)
+                then (Hashtbl.add defined_nodes node_name n; n)
+                else raise (MyParsingError
+                            ("There is a conflict between the names of local, input \
+                            or output variables.",
+                            current_location()))
+          end};
 
 node_body:
   | /* empty */ { ([], []) }

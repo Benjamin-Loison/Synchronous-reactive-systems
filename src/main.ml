@@ -36,7 +36,6 @@ let _ =
   let nopopt = ref false in
   let simopt = ref false in
   let passes = ref [] in
-  let main_fn = ref "main" in
   let source_file = ref "" in
   let testopt = ref false in
   let output_file = ref "out.c" in
@@ -53,8 +52,6 @@ let _ =
       ("-p", Arg.String (fun s -> passes := s :: !passes),
             "Add a pass to the compilation process");
       ("-sim", Arg.Set simopt, "Simulate the main node");
-      ("-m", Arg.String (fun s -> main_fn := s),
-            "Defines what the main function is (defaults to main).");
       ("-o", Arg.Set_string output_file, "Output file (defaults to [out.c])");
     ] in
   Arg.parse speclist anon_fun usage_msg ;
@@ -62,7 +59,7 @@ let _ =
   if !passes = [] then passes := default_passes;
   let print_verbose = print_verbose !verbose in
   let print_debug = print_debug !debug in
-  let main_fn = !main_fn in
+  let main_fn = "main" in
 
   (** Definition of the passes table *)
   let passes_table  = Hashtbl.create 100 in
