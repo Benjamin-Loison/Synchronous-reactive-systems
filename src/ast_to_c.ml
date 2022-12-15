@@ -82,6 +82,8 @@ let rec pp_asnprevarlist node_name fmt : t_varlist -> unit = function
       Format.fprintf fmt "\tpre_%s_%s = %s;\n%a" node_name h h (pp_asnprevarlist node_name) (tl, h' :: l)
   | _ -> raise (MyTypeError "This exception should not have beed be raised.")
 
+let reset_expressions_counter = ref 0;;
+
 let pp_expression node_name =
   let rec pp_expression_aux fmt expression =
     let rec pp_expression_list fmt exprs =
@@ -101,12 +103,25 @@ let pp_expression node_name =
           Format.fprintf fmt "%a"
             pp_expression_aux e1
         end
-    (* TODO: *)
     | EReset (_, e1, e2) ->
         begin
-          Format.fprintf fmt "\t\t\tRESET\n%a\t\t\tRESET\n%a"
+            incr reset_expressions_counter;
+            (* Use following trick as we can't use `;`:
+               if(((var = val) && false) || condition)
+               is equivalent to an incorrect statement like
+               if({var = val; condition})
+               We also use this trick with the fact that `0` can be interpreted as a `bool`, an `int` and a `float` *)
+            (* could use C macros to simplify the C code *)
+            Format.fprintf fmt "(((tmp_reset[%i] = %a) && false) || init_%s) ? (((init[%i] = tmp_reset[%i]) || true) ? tmp_reset[%i] : 0) : (%a ? init[%i] : tmp_reset[%i])"
+            (!reset_expressions_counter - 1)
             pp_expression_aux e1
+            node_name
+            (!reset_expressions_counter - 1)
+            (!reset_expressions_counter - 1)
+            (!reset_expressions_counter - 1)
             pp_expression_aux e2
+            (!reset_expressions_counter - 1)
+            (!reset_expressions_counter - 1)
         end
     | EConst (_, c) ->
         begin match c with
@@ -182,15 +197,27 @@ let rec pp_equations node_name fmt: t_eqlist -> unit = function
         (pp_expression node_name) expr
         (pp_equations node_name) eqs
 
+let pp_resvars reset_expressions_counter =
+    (* use the fact that any boolean and any integer can be encoded as a float *)
+    Format.sprintf "float tmp_reset[%i], init[%i];" reset_expressions_counter reset_expressions_counter
+
 (* TODO: manage general outputs *)
 let pp_node fmt node =
-  (* undefined behavior if the initial code uses a variable with name `init_{NODE_NAME}` or `pre_{NODE_MAIN}_{VARIABLE}` *)
-  Format.fprintf fmt "bool init_%s = true;\n\n%a\n\n%a\n\n%a\n\n%a %s(%a)\n{\n\t%a\n\n\t%a\n\n%a\n\tinit_%s = false;\n\n%a\n\n%a\n\n%a\n\n\treturn %a;\n}\n"
+    (* undefined behavior if the initial code uses a variable with name:
+        - `init_{NODE_NAME}`
+        - `tmp_reset_{int}`
+        - `init_{int}`
+        - `pre_{NODE_MAIN}_{VARIABLE}` *)
+  reset_expressions_counter := 0;
+  let _ = (pp_equations node.n_name) Format.str_formatter node.n_equations in
+  reset_expressions_counter := 0;
+  Format.fprintf fmt "bool init_%s = true;\n\n%a\n\n%a\n\n%a\n\n%s\n\n%a %s(%a)\n{\n\t%a\n\n\t%a\n\n%a\n\tinit_%s = false;\n\n%a\n\n%a\n\n%a\n\n\treturn %a;\n}\n"
     node.n_name
     (* could avoid declaring unused variables *)
     (pp_prevarlist node.n_name) node.n_inputs
     (pp_prevarlist node.n_name) node.n_local_vars
     (pp_prevarlist node.n_name) node.n_outputs
+    (pp_resvars !reset_expressions_counter)
     pp_retvarlist node.n_outputs
     node.n_name
     (* could avoid newlines if they aren't used to seperate statements *)
