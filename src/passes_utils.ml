@@ -31,3 +31,8 @@ let expression_pass f: t_nodelist -> t_nodelist option =
   equation_pass aux
 
 exception PassExn of string
+
+let counter = ref 0
+let create_automaton_name : unit -> string = fun () ->
+    counter := !counter + 1;
+    Format.asprintf "_s%d" (!counter)
