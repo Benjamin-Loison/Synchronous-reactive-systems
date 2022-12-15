@@ -386,6 +386,9 @@ expr:
   /* Tuples */
   | LPAREN expr_comma_list RPAREN      { $2 }
   /* Applications */
+  | IDENT LPAREN RPAREN
+      { raise (MyParsingError ("An application should come with arguments!",
+                      current_location())) }
   | IDENT LPAREN expr_comma_list RPAREN
       { let name = $1 in
         let node = fetch_node name in
