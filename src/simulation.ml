@@ -26,9 +26,9 @@ let pp_sim fmt ((sn, _): sim_node) =
     | SRVar (s, None) :: t ->
         Format.fprintf fmt "\t<%s : real> uninitialized yet.\n%a" s aux t
     | SIVar (s, Some i) :: t ->
-        Format.fprintf fmt "\t<%s : real> = %d\n%a" s i aux t
+        Format.fprintf fmt "\t<%s : int> = %d\n%a" s i aux t
     | SBVar (s, Some b) :: t ->
-        Format.fprintf fmt "\t<%s : real> = %s\n%a" s (Bool.to_string b) aux t
+        Format.fprintf fmt "\t<%s : bool> = %s\n%a" s (Bool.to_string b) aux t
     | SRVar (s, Some r) :: t ->
         Format.fprintf fmt "\t<%s : real> = %f\n%a" s r aux t
   in
