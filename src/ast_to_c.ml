@@ -99,8 +99,8 @@ let pp_expression node_name =
     match expression with
     | EWhen (_, e1, e2) ->
         begin
-          (* as don't use a variable assigned when the condition holds, can define it even if the condition doesn't hold *)
-          Format.fprintf fmt "%a"
+          Format.fprintf fmt "%a ? %a : 0"
+            pp_expression_aux e2
             pp_expression_aux e1
         end
     | EReset (_, e1, e2) ->
