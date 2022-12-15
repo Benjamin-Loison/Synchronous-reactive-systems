@@ -22,6 +22,18 @@ let rec list_chk v = function
   | [] -> false
   | h :: t -> if h = v then true else list_chk v t
 
+let rec vars_distinct lv lv' lv'' =
+  match lv, lv', lv'' with
+  | [], [], _ -> true
+  | [], h :: t , l'' ->
+      if List.mem h l''
+        then false
+        else vars_distinct [] t l''
+  | h :: t, l', l'' ->
+      if List.mem h l' || List.mem h l''
+        then false
+        else vars_distinct t l' l''
+
 exception MyParsingError of (string * location)
 
 let type_const = function

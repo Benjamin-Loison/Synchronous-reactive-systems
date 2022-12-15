@@ -204,7 +204,13 @@ node_content:
                     (Format.asprintf "The node %s is already defined."
                                       node_name,
                     current_location()))
-        else Hashtbl.add defined_nodes node_name n; n };
+        else
+          if vars_distinct e_in e_out (snd $10)
+            then (Hashtbl.add defined_nodes node_name n; n)
+            else raise (MyParsingError
+                        ("There is a conflict between the names of local, input \
+                        or output variables.",
+                        current_location())) };
 
 node_body:
   | /* empty */ { ([], []) }
