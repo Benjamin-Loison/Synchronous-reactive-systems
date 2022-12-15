@@ -426,3 +426,7 @@ let automata_trans_pass debug (node:t_node) : t_node option=
       n_automata = node.n_automata;
     }
 
+let automata_translation_pass verbose debug main_fn = 
+  node_pass (automata_trans_pass debug)
+
+
