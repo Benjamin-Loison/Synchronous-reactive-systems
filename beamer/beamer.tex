@@ -176,15 +176,16 @@
 				\item \texttt{pp\_asnprevarlist}
 			\end{itemize}
 		\pause
-		\item \texttt{when} implementation error: division by zero for instance
+		\item \texttt{when} implementation error: division by zero for instance, so used the first trick (\texttt{when\_merge.node})
 		\pause
-		\item \texttt{->}
+		\item \texttt{->}: use global variable \texttt{init\_\{NODE\_NAME\}}\\
+					\texttt{1 -> 2 -> 3} returns \texttt{0} on first run and only \texttt{3} on the following ones, correct? (\texttt{arrow.node})
 		\pause
 		\item \texttt{pre}
 		\pause
-		\item \texttt{reset}
+		\item \texttt{reset}% (\texttt{reset})
 		\pause
-		\item Functions returning tuples thanks to Arnaud's linearization only have to deal with \texttt{(a0, a1, ..., an) = return\_tuple\_a0\_a1\_dots\_an(0)}
+		\item Functions returning tuples thanks to Arnaud's linearization only have to deal with \texttt{(a0, a1, ..., an) = return\_tuple\_a0\_a1\_dots\_an(0)} (\texttt{function\_returning\_tuple.node})
 	\end{itemize}
 \end{frame}
 
