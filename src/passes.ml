@@ -137,9 +137,9 @@ let chkvar_init_unicity verbose debug main_fn : t_nodelist -> t_nodelist option 
     in
     let add_var_in = add_var 1 in
     let add_var_loc = add_var 0 in
-    List.iter add_var_in (snd node.n_inputs);
     List.iter add_var_loc (snd node.n_outputs);
     List.iter add_var_loc (snd node.n_local_vars);
+    List.iter add_var_in (snd node.n_inputs);
     (** Usual Equations *)
     incr_eqlist h node.n_equations;
     if check_now h = false
@@ -157,6 +157,47 @@ let chkvar_init_unicity verbose debug main_fn : t_nodelist -> t_nodelist option 
 
 let pass_linearization verbose debug main_fn =
   let node_lin (node: t_node): t_node option =
+    let pre_aux_expression b vars expr: t_eqlist * t_varlist * t_expression =
+      match expr with
+      | EVar _ -> [], vars, expr
+      | EMonOp of full_ty * monop * t_expression -> (** TODO! *)
+      | EBinOp (t, op, e, e') ->
+          let eqs, vars, e = pre_aux_expression false vars e in
+          let eqs', vars, e' = pre_aux_expression false vars e' in
+          eqs @ eqs', vars, EBinOp (t, op, e, e')
+      | ETriOp (t, op, e, e', e'') ->
+          let eqs, vars, e = pre_aux_expression false vars e in
+          let eqs', vars, e' = pre_aux_expression false vars e' in
+          let eqs'', vars, e'' = pre_aux_expression false vars e'' in
+          eqs @ eqs' @ eqs'', vars, ETriOp (t, op, e, e', e'')
+      | EComp  (t, op, e, e') ->
+          let eqs, vars, e = pre_aux_expression false vars e in
+          let eqs', vars, e' = pre_aux_expression false vars e' in
+          eqs @ eqs', vars, EComp (t, op, e, e')
+      | EWhen  (t, e, e') ->
+          let eqs, vars, e = pre_aux_expression false vars e in
+          let eqs', vars, e' = pre_aux_expression false vars e' in
+          eqs @ eqs', vars, EWhen (t, e, e')
+      | EReset (t, e, e') ->
+          let eqs, vars, e = pre_aux_expression false vars e in
+          let eqs', vars, e' = pre_aux_expression false vars e' in
+          eqs @ eqs', vars, EReset (t, e, e')
+      | EConst _ -> [], vars, expr
+      (** TODO!*)
+      | ETuple (t, l) ->
+          let eqs, vars, l = List.fold_right
+            (fun e (eqs, vars, l) ->
+              let eqs', vars, e = pre_aux_expression false vars e in
+              eqs' @ eqs, vars, (e :: l))
+            l ([], vars, []) in
+          eqs, vars, ETuple (t, l)
+      | EApp   (t, n, e) ->
+          let eqs, vars, e = pre_aux_expression false vars e in
+          eqs, vars, EApp (t, n, e)
+      in
+    let rec pre_aux_equation (vars: t_varlist) (eq: t_equation) =
+      [], ([], [])
+      in
     let rec tpl ((pat, exp): t_equation) =
       match exp with
       | ETuple (_, hexps :: texps) ->
@@ -173,13 +214,19 @@ let pass_linearization verbose debug main_fn =
       | ETuple (_, []) -> []
       | _ -> [(pat, exp)]
     in
-    let new_locvars = node.n_local_vars in
     let new_equations = List.flatten
-      begin
-      List.map
+      (List.map
         tpl
-        node.n_equations
-      end in
+        node.n_equations)
+      in
+    let new_equations, new_locvars =
+      List.fold_left
+        (fun (eqs, vars) eq ->
+          let es, vs = pre_aux_equation vars eq in
+          es @ eqs, ((fst vs) @ (fst vars), (snd vs) @ (snd vars)))
+        (new_equations, node.n_local_vars)
+        new_equations
+      in
     Some
       {
         n_name = node.n_name;
