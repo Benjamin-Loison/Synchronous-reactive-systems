@@ -295,28 +295,35 @@ let pass_typing verbose debug main_fn ast =
           else None
   in aux ast
 
-let check_automaton_branch_vars automaton = 
-  let (init, states) = automaton in
-  let left_side = Hashtbl.create 10 in
+let check_automata_validity verbos debug main_fn = 
+  let check_automaton_branch_vars automaton = 
+    let (init, states) = automaton in
+    let left_side = Hashtbl.create 10 in
 
-  let rec init_left_side eqlist = match eqlist with
-  | [] -> ()
-  | (varlist, exp)::q -> 
-      begin
-        Hashtbl.add left_side varlist true;
-        init_left_side q;
-      end
+    let rec init_left_side eqlist = match eqlist with
+    | [] -> ()
+    | (varlist, exp)::q -> 
+        begin
+          Hashtbl.add left_side varlist true;
+          init_left_side q;
+        end
+    in
+    let check_state s = match s with
+    | State(name, eqs, cond, next) ->
+        List.for_all (fun (varlist, exp) -> (Hashtbl.mem left_side varlist)) eqs
+    in
+    begin
+    match init with | State(name, eqs, cond, next) -> init_left_side eqs;
+    let validity = List.for_all (fun s -> (check_state s)) states in
+    if not validity then
+      failwith "Automaton branch has different variables assignment in different branches"
+    end
   in
-  let check_state s = match s with
-  | State(name, eqs, cond, next) ->
-      List.for_all (fun (varlist, exp) -> (Hashtbl.mem left_side varlist)) eqs
+  let aux node = 
+    List.iter check_automaton_branch_vars node.n_automata;
+    Some node
   in
-  begin
-  match init with | State(name, eqs, cond, next) -> init_left_side eqs;
-  let validity = List.for_all (fun s -> (check_state s)) states in
-  if not validity then
-    failwith "Automaton branch has different variables assignment in different branches"
-  end
+  node_pass aux
 
 let automaton_translation debug automaton = 
   let gathered = Hashtbl.create 10 in
@@ -331,7 +338,7 @@ let automaton_translation debug automaton =
   let rec init_state_translation states c = match states with
   | [] -> ()
   | State(name, _, _, _)::q -> 
-      Hashtbl.replace state_to_int name c; (init_state_translation q c)
+      Hashtbl.replace state_to_int name c; (init_state_translation q (c+1))
   in
 
   let rec find_state name = 
@@ -350,14 +357,20 @@ let automaton_translation debug automaton =
 
   let flatten_state state = match state with
   | State(name, eq, cond, next) -> 
+    (* Flattening is not possible
+       for example a branch where x,y = 1, 2 will be unpacked
+       when in another branch x, y = f(z) will not be unpacked
+    *)
+    (*
     let new_equations = List.flatten
       begin
       List.map
         (tpl debug)
         eq
       end in
-    equation_pass name new_equations;
-    State(name, new_equations, cond, next)
+    *)
+    equation_pass name eq;
+    State(name, eq, cond, next)
   in
 
   let rec transition_eq states s = 
@@ -399,7 +412,7 @@ let automaton_translation debug automaton =
   let (init, states) = flatten_automaton automaton in
   let s = create_automaton_name () in
   init_state_translation states 1;
-  let exp_transition = transition_eq states s in
+  let exp_transition = EBinOp([TInt], BOp_arrow, EConst([TInt], CInt(1)), EMonOp([TInt], MOp_pre, transition_eq states s)) in
   let new_equations = [(([TInt], [IVar(s)]), exp_transition)] in
   Hashtbl.fold (fun var explist acc -> (var, translate_var s var explist)::acc) gathered new_equations, IVar(s)
 
@@ -423,7 +436,7 @@ let automata_trans_pass debug (node:t_node) : t_node option=
       n_outputs = node.n_outputs;
       n_local_vars = (new_ty@ty, vars@loc_vars);
       n_equations = eqs@node.n_equations;
-      n_automata = node.n_automata;
+      n_automata = []; (* not needed anymore *)
     }
 
 let automata_translation_pass verbose debug main_fn = 
