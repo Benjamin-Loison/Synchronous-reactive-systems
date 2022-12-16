@@ -209,6 +209,8 @@ let pp_resvars reset_expressions_counter =
     (* use the fact that any boolean and any integer can be encoded as a float, concerning integers [-2^(23+1) + 1; 2^(23+1) + 1] are correctly encoded (cf https://stackoverflow.com/a/53254438) *)
     Format.sprintf "float tmp_reset[%i], init[%i];" reset_expressions_counter reset_expressions_counter
 
+let pp_return fmt 
+
 (* TODO: manage general outputs *)
 let pp_node fmt node =
     (* undefined behavior if the initial code uses a variable with name:
@@ -237,7 +239,7 @@ let pp_node fmt node =
     (pp_asnprevarlist node.n_name) node.n_inputs
     (pp_asnprevarlist node.n_name) node.n_local_vars
     (pp_asnprevarlist node.n_name) node.n_outputs
-    (pp_varlist Base) node.n_outputs
+    (Format.fprintf fmt "%a" (pp_varlist Base) node.n_outputs)
 
 let rec pp_nodes fmt nodes =
   match nodes with
