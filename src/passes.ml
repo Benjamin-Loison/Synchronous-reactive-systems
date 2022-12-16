@@ -188,9 +188,9 @@ let pass_linearization verbose debug main_fn =
                           | [TReal] -> RVar nvar
                           | _ -> failwith "Should not happened." in
               let neq_patt: t_varlist = (t, [nvar]) in
-              let neq_expr: t_expression = EMonOp (t, MOp_pre, e) in
+              let neq_expr: t_expression = e in
               let vars = varlist_concat (t, [nvar]) vars in
-              (neq_patt, neq_expr) :: eqs, vars, EVar (t, nvar)
+              (neq_patt, neq_expr) :: eqs, vars, EMonOp (t, MOp_pre, EVar (t, nvar))
           | _ ->
               let eqs, vars, e = pre_aux_expression vars e in
               eqs, vars, EMonOp (t, op, e)
@@ -228,8 +228,7 @@ let pass_linearization verbose debug main_fn =
           let eqs, vars, e = pre_aux_expression vars e in
           eqs, vars, EApp (t, n, e)
       in
-    let rec pre_aux_equation (vars: t_varlist) (eq: t_equation) =
-      let (patt, expr) = eq in
+    let rec pre_aux_equation (vars: t_varlist) ((patt, expr): t_equation) =
       let eqs, vars, expr = pre_aux_expression vars expr in
       (patt, expr)::eqs, vars
       in
@@ -259,7 +258,7 @@ let pass_linearization verbose debug main_fn =
         (fun (eqs, vars) eq ->
           let es, vs = pre_aux_equation vars eq in
           es @ eqs, ((fst vs) @ (fst vars), (snd vs) @ (snd vars)))
-        (new_equations, node.n_local_vars)
+        ([], node.n_local_vars)
         new_equations
       in
     Some

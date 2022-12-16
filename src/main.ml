@@ -25,7 +25,7 @@ let exec_passes ast main_fn verbose debug passes f =
 
 let _ =
   (** Usage and argument parsing. *)
-	let default_passes = ["pre2vars"; "automata_validity" ;"automata_translation"; "linearization"; "equations_ordering"] in
+	let default_passes = ["automata_validity" ;"automata_translation"; "linearization"; "pre2vars"; "equations_ordering"] in
   let sanity_passes = ["chkvar_init_unicity"; "check_typing"] in
   let usage_msg =
     "Usage: main [-passes p1,...,pn] [-ast] [-verbose] [-debug] \
