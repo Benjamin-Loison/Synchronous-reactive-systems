@@ -73,3 +73,7 @@ and t_node =
 
 type t_nodelist = t_node list
 
+type t_ck = base_ck list
+and base_ck = 
+    | Base
+    | On of base_ck * t_expression
