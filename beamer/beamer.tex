@@ -121,7 +121,16 @@
 
 \section{Translation to C}
 \begin{frame}
-    \centerline{\Huge TODO $\boxed{\ddot\smile}$}
+    Use of three tricks, as our compiler only manages \texttt{bool}s, \texttt{int}s and \texttt{float}s:
+		\begin{enumerate}
+			\item \texttt{0} can be interpreted as a \texttt{bool}, an \texttt{int} and a \texttt{float}
+			\pause
+			\item A \texttt{float} correctly encode \texttt{bool}s (\texttt{true} and \texttt{false}) and \texttt{int}s (between $[-2^{24} + 1; 2^{24} + 1]$)
+			\pause
+			\item To run an assignment of \texttt{value} to \texttt{variable} within the condition of a \texttt{if} and also make the cases of the \texttt{if} depends on a condition \texttt{condition}, we can do \texttt{if(((variable = value) \&\& false) || condition)}\\
+			\pause
+			We can also use this trick to execute an assignment and \textit{return} a value \texttt{value\_to\_return} without using any \texttt{;}, by using \texttt{((variable = value) || true) ? value\_to\_return : 0} (thanks to the first trick)
+		\end{enumerate}
 \end{frame}
 
 \section{Tests}
