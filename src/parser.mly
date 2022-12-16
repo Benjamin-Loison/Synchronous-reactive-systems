@@ -276,6 +276,7 @@ equations:
   | /* empty */ { [] }
   | equation SEMICOL equations
       {  $1 :: $3 }
+  | equation OPTIONAL_SEMICOL { [$1] }
 ;
 
 equation:
