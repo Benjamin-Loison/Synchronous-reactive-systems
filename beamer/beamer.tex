@@ -121,7 +121,16 @@
 
 \section{Translation to C}
 \begin{frame}
-    Use of three tricks, as our compiler only manages \texttt{bool}s, \texttt{int}s and \texttt{float}s:
+
+	Architecture similar to Arnaud's AST pretty-printer.
+
+	\pause
+
+	For instance, go from \texttt{counting.lus} to \texttt{counting.c}.
+
+    \pause
+
+	Use of three tricks, as our compiler only manages \texttt{bool}s, \texttt{int}s and \texttt{float}s:
 		\begin{enumerate}
 			\item \texttt{0} can be interpreted as a \texttt{bool}, an \texttt{int} and a \texttt{float}
 			\pause
