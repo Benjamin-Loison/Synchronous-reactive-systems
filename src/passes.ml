@@ -157,46 +157,65 @@ let chkvar_init_unicity verbose debug main_fn : t_nodelist -> t_nodelist option 
 
 let pass_linearization verbose debug main_fn =
   let node_lin (node: t_node): t_node option =
-    let pre_aux_expression b vars expr: t_eqlist * t_varlist * t_expression =
+    let rec pre_aux_expression vars expr: t_eqlist * t_varlist * t_expression =
       match expr with
       | EVar _ -> [], vars, expr
-      | EMonOp of full_ty * monop * t_expression -> (** TODO! *)
+      | EMonOp (t, op, e) ->
+          begin
+          match op with
+          | MOp_pre ->
+              let eqs, vars, e = pre_aux_expression vars e in
+              let nvar: string = fresh_var_name vars 6 in
+              let nvar = match t with
+                          | [TInt]  -> IVar nvar
+                          | [TBool] -> BVar nvar
+                          | [TReal] -> RVar nvar
+                          | _ -> failwith "Should not happened." in
+              let neq_patt: t_varlist = (t, [nvar]) in
+              let neq_expr: t_expression = EMonOp (t, MOp_pre, e) in
+              let vars = varlist_concat (t, [nvar]) vars in
+              (neq_patt, neq_expr) :: eqs, vars, EVar (t, nvar)
+          | _ ->
+              let eqs, vars, e = pre_aux_expression vars e in
+              eqs, vars, EMonOp (t, op, e)
+          end
       | EBinOp (t, op, e, e') ->
-          let eqs, vars, e = pre_aux_expression false vars e in
-          let eqs', vars, e' = pre_aux_expression false vars e' in
+          let eqs, vars, e = pre_aux_expression vars e in
+          let eqs', vars, e' = pre_aux_expression vars e' in
           eqs @ eqs', vars, EBinOp (t, op, e, e')
       | ETriOp (t, op, e, e', e'') ->
-          let eqs, vars, e = pre_aux_expression false vars e in
-          let eqs', vars, e' = pre_aux_expression false vars e' in
-          let eqs'', vars, e'' = pre_aux_expression false vars e'' in
+          let eqs, vars, e = pre_aux_expression vars e in
+          let eqs', vars, e' = pre_aux_expression vars e' in
+          let eqs'', vars, e'' = pre_aux_expression vars e'' in
           eqs @ eqs' @ eqs'', vars, ETriOp (t, op, e, e', e'')
       | EComp  (t, op, e, e') ->
-          let eqs, vars, e = pre_aux_expression false vars e in
-          let eqs', vars, e' = pre_aux_expression false vars e' in
+          let eqs, vars, e = pre_aux_expression vars e in
+          let eqs', vars, e' = pre_aux_expression vars e' in
           eqs @ eqs', vars, EComp (t, op, e, e')
       | EWhen  (t, e, e') ->
-          let eqs, vars, e = pre_aux_expression false vars e in
-          let eqs', vars, e' = pre_aux_expression false vars e' in
+          let eqs, vars, e = pre_aux_expression vars e in
+          let eqs', vars, e' = pre_aux_expression vars e' in
           eqs @ eqs', vars, EWhen (t, e, e')
       | EReset (t, e, e') ->
-          let eqs, vars, e = pre_aux_expression false vars e in
-          let eqs', vars, e' = pre_aux_expression false vars e' in
+          let eqs, vars, e = pre_aux_expression vars e in
+          let eqs', vars, e' = pre_aux_expression vars e' in
           eqs @ eqs', vars, EReset (t, e, e')
       | EConst _ -> [], vars, expr
-      (** TODO!*)
       | ETuple (t, l) ->
           let eqs, vars, l = List.fold_right
             (fun e (eqs, vars, l) ->
-              let eqs', vars, e = pre_aux_expression false vars e in
+              let eqs', vars, e = pre_aux_expression vars e in
               eqs' @ eqs, vars, (e :: l))
             l ([], vars, []) in
           eqs, vars, ETuple (t, l)
       | EApp   (t, n, e) ->
-          let eqs, vars, e = pre_aux_expression false vars e in
+          let eqs, vars, e = pre_aux_expression vars e in
           eqs, vars, EApp (t, n, e)
       in
     let rec pre_aux_equation (vars: t_varlist) (eq: t_equation) =
-      [], ([], [])
+      let (patt, expr) = eq in
+      let eqs, vars, expr = pre_aux_expression vars expr in
+      (patt, expr)::eqs, vars
       in
     let rec tpl ((pat, exp): t_equation) =
       match exp with
