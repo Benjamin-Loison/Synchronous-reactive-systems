@@ -97,35 +97,49 @@
 
 \section{Passes}
 \begin{frame}{Passes}
-	\begin{block}{Classification}
-		The passes of our compiler are functions of taking a program and either:
+	\begin{block}{Sanity checks}
 		\begin{itemize}
-			\item returning a program if the pass succeeded
-			\item returns nothing otherwise
+			\item Check the well-typedness of a program
+			\item Check that there are no assignment conflicts in a programs
 		\end{itemize}
-
-		We only have one language in our compiler: no intermediary language.
+	\end{block}
+	\begin{block}{AST modification}
+		\begin{itemize}
+			\item Rewrite automata into \texttt{if-then-else} constructs
+			\item Linearization of the equations
+			\item (no longer required) Push the \texttt{pre} to variables
+		\end{itemize}
 	\end{block}
 \end{frame}
 
-\subsection{Check}
+\section{Translation to C}
 \begin{frame}
-	\begin{block}{Passes}
-		The passes can be split into:
-		\begin{itemize}
-			\item those checking the program validity
-			\item those modifying the AST of the program
-		\end{itemize}
-	\end{block}
+    \centerline{\Huge TODO $\boxed{\ddot\smile}$}
 \end{frame}
 
-\begin{frame}{Implemented passes}
-	\begin{block}{\texttt{pre}-propagation to leaves}
-	\end{block}
-	\begin{block}{Check: unique initialization for variables}
-	\end{block}
-	\begin{block}{Linearization of the equations}
-	\end{block}
+\section{Tests}
+\begin{frame}{Tests}
+    \begin{block}{testing methods}
+        We thought of three testing methods:
+        \begin{itemize}
+            \item manual testing of our functionalities
+            \item run the sanity-checks-passes after any AST-altering pass
+            \item simulation of the nodes (aborted)
+        \end{itemize}
+    \end{block}
+\end{frame}
+
+\section{Possible improvements}
+\begin{frame}{Improvements}
+    \begin{itemize}
+        \item Increase the expressivity of the accepted programs
+        \item Improve the complexity of the different passes
+        \begin{itemize}
+            \item Group neighbour passes of the same type (node-, expression or
+            equation-pass).
+        \end{itemize}
+        \item \dots{}
+    \end{itemize}
 \end{frame}
 
 \end{document}
