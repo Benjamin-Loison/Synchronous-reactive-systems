@@ -1,5 +1,4 @@
 node diagonal_int (i: int) returns (o1, o2 : int);
-var i: int;
 let
 	(o1, o2) = (i, i);
 tel
@@ -13,9 +12,10 @@ let
 tel
 
 node auto (i: int) returns (o : int);
+var x, y:int;
 let
 	automaton
-	| Incr -> do o = (pre o) + 1; done
-	| Decr -> do o = (pre o) - 1; done
+	| Incr -> do (o,x) = (0 fby o + 1, 2); done
+	| Decr -> do (o,x) = diagonal_int(0 fby o); done
 tel
 

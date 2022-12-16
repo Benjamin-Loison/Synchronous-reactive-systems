@@ -137,9 +137,9 @@ let chkvar_init_unicity verbose debug main_fn : t_nodelist -> t_nodelist option 
     in
     let add_var_in = add_var 1 in
     let add_var_loc = add_var 0 in
-    List.iter add_var_in (snd node.n_inputs);
     List.iter add_var_loc (snd node.n_outputs);
     List.iter add_var_loc (snd node.n_local_vars);
+    List.iter add_var_in (snd node.n_inputs);
     (** Usual Equations *)
     incr_eqlist h node.n_equations;
     if check_now h = false
@@ -173,18 +173,100 @@ let rec tpl debug ((pat, exp): t_equation) =
 
 let pass_linearization verbose debug main_fn =
   let node_lin (node: t_node): t_node option =
+    let rec pre_aux_expression vars expr: t_eqlist * t_varlist * t_expression =
+      match expr with
+      | EVar _ -> [], vars, expr
+      | EMonOp (t, op, e) ->
+          begin
+          match op with
+          | MOp_pre ->
+              let eqs, vars, e = pre_aux_expression vars e in
+              let nvar: string = fresh_var_name vars 6 in
+              let nvar = match t with
+                          | [TInt]  -> IVar nvar
+                          | [TBool] -> BVar nvar
+                          | [TReal] -> RVar nvar
+                          | _ -> failwith "Should not happened." in
+              let neq_patt: t_varlist = (t, [nvar]) in
+              let neq_expr: t_expression = e in
+              let vars = varlist_concat (t, [nvar]) vars in
+              (neq_patt, neq_expr) :: eqs, vars, EMonOp (t, MOp_pre, EVar (t, nvar))
+          | _ ->
+              let eqs, vars, e = pre_aux_expression vars e in
+              eqs, vars, EMonOp (t, op, e)
+          end
+      | EBinOp (t, op, e, e') ->
+          let eqs, vars, e = pre_aux_expression vars e in
+          let eqs', vars, e' = pre_aux_expression vars e' in
+          eqs @ eqs', vars, EBinOp (t, op, e, e')
+      | ETriOp (t, op, e, e', e'') ->
+          let eqs, vars, e = pre_aux_expression vars e in
+          let eqs', vars, e' = pre_aux_expression vars e' in
+          let eqs'', vars, e'' = pre_aux_expression vars e'' in
+          eqs @ eqs' @ eqs'', vars, ETriOp (t, op, e, e', e'')
+      | EComp  (t, op, e, e') ->
+          let eqs, vars, e = pre_aux_expression vars e in
+          let eqs', vars, e' = pre_aux_expression vars e' in
+          eqs @ eqs', vars, EComp (t, op, e, e')
+      | EWhen  (t, e, e') ->
+          let eqs, vars, e = pre_aux_expression vars e in
+          let eqs', vars, e' = pre_aux_expression vars e' in
+          eqs @ eqs', vars, EWhen (t, e, e')
+      | EReset (t, e, e') ->
+          let eqs, vars, e = pre_aux_expression vars e in
+          let eqs', vars, e' = pre_aux_expression vars e' in
+          eqs @ eqs', vars, EReset (t, e, e')
+      | EConst _ -> [], vars, expr
+      | ETuple (t, l) ->
+          let eqs, vars, l = List.fold_right
+            (fun e (eqs, vars, l) ->
+              let eqs', vars, e = pre_aux_expression vars e in
+              eqs' @ eqs, vars, (e :: l))
+            l ([], vars, []) in
+          eqs, vars, ETuple (t, l)
+      | EApp   (t, n, e) ->
+          let eqs, vars, e = pre_aux_expression vars e in
+          eqs, vars, EApp (t, n, e)
+      in
+    let rec pre_aux_equation (vars: t_varlist) ((patt, expr): t_equation) =
+      let eqs, vars, expr = pre_aux_expression vars expr in
+      (patt, expr)::eqs, vars
+      in
+    let rec tpl ((pat, exp): t_equation) =
+      match exp with
+      | ETuple (_, hexps :: texps) ->
+          debug "An ETuple has been recognized, inlining...";
+          let p1, p2 =
+            list_select
+              (List.length (type_exp hexps))
+              (snd pat) in
+          let t1 = List.flatten (List.map type_var p1) in
+          let t2 = List.flatten (List.map type_var p2) in
+          ((t1, p1), hexps)
+            :: (tpl ((t2, p2),
+                ETuple (List.flatten (List.map type_exp texps), texps)))
+      | ETuple (_, []) -> []
+      | _ -> [(pat, exp)]
+    in
     let new_equations = List.flatten
-      begin
-      List.map
-        (tpl debug)
-        node.n_equations
-      end in
+      (List.map
+        tpl
+        node.n_equations)
+      in
+    let new_equations, new_locvars =
+      List.fold_left
+        (fun (eqs, vars) eq ->
+          let es, vs = pre_aux_equation vars eq in
+          es @ eqs, vars)
+        ([], node.n_local_vars)
+        new_equations
+      in
     Some
       {
         n_name = node.n_name;
         n_inputs = node.n_inputs;
         n_outputs = node.n_outputs;
-        n_local_vars = node.n_local_vars;
+        n_local_vars = new_locvars;
         n_equations = new_equations;
         n_automata = node.n_automata;
       }
@@ -295,28 +377,35 @@ let pass_typing verbose debug main_fn ast =
           else None
   in aux ast
 
-let check_automaton_branch_vars automaton = 
-  let (init, states) = automaton in
-  let left_side = Hashtbl.create 10 in
+let check_automata_validity verbos debug main_fn = 
+  let check_automaton_branch_vars automaton = 
+    let (init, states) = automaton in
+    let left_side = Hashtbl.create 10 in
 
-  let rec init_left_side eqlist = match eqlist with
-  | [] -> ()
-  | (varlist, exp)::q -> 
-      begin
-        Hashtbl.add left_side varlist true;
-        init_left_side q;
-      end
+    let rec init_left_side eqlist = match eqlist with
+    | [] -> ()
+    | (varlist, exp)::q -> 
+        begin
+          Hashtbl.add left_side varlist true;
+          init_left_side q;
+        end
+    in
+    let check_state s = match s with
+    | State(name, eqs, cond, next) ->
+        List.for_all (fun (varlist, exp) -> (Hashtbl.mem left_side varlist)) eqs
+    in
+    begin
+    match init with | State(name, eqs, cond, next) -> init_left_side eqs;
+    let validity = List.for_all (fun s -> (check_state s)) states in
+    if not validity then
+      failwith "Automaton branch has different variables assignment in different branches"
+    end
   in
-  let check_state s = match s with
-  | State(name, eqs, cond, next) ->
-      List.for_all (fun (varlist, exp) -> (Hashtbl.mem left_side varlist)) eqs
+  let aux node = 
+    List.iter check_automaton_branch_vars node.n_automata;
+    Some node
   in
-  begin
-  match init with | State(name, eqs, cond, next) -> init_left_side eqs;
-  let validity = List.for_all (fun s -> (check_state s)) states in
-  if not validity then
-    failwith "Automaton branch has different variables assignment in different branches"
-  end
+  node_pass aux
 
 let automaton_translation debug automaton = 
   let gathered = Hashtbl.create 10 in
@@ -331,7 +420,7 @@ let automaton_translation debug automaton =
   let rec init_state_translation states c = match states with
   | [] -> ()
   | State(name, _, _, _)::q -> 
-      Hashtbl.replace state_to_int name c; (init_state_translation q c)
+      Hashtbl.replace state_to_int name c; (init_state_translation q (c+1))
   in
 
   let rec find_state name = 
@@ -350,14 +439,20 @@ let automaton_translation debug automaton =
 
   let flatten_state state = match state with
   | State(name, eq, cond, next) -> 
+    (* Flattening is not possible
+       for example a branch where x,y = 1, 2 will be unpacked
+       when in another branch x, y = f(z) will not be unpacked
+    *)
+    (*
     let new_equations = List.flatten
       begin
       List.map
         (tpl debug)
         eq
       end in
-    equation_pass name new_equations;
-    State(name, new_equations, cond, next)
+    *)
+    equation_pass name eq;
+    State(name, eq, cond, next)
   in
 
   let rec transition_eq states s = 
@@ -399,7 +494,7 @@ let automaton_translation debug automaton =
   let (init, states) = flatten_automaton automaton in
   let s = create_automaton_name () in
   init_state_translation states 1;
-  let exp_transition = transition_eq states s in
+  let exp_transition = EBinOp([TInt], BOp_arrow, EConst([TInt], CInt(1)), EMonOp([TInt], MOp_pre, transition_eq states s)) in
   let new_equations = [(([TInt], [IVar(s)]), exp_transition)] in
   Hashtbl.fold (fun var explist acc -> (var, translate_var s var explist)::acc) gathered new_equations, IVar(s)
 
@@ -423,6 +518,10 @@ let automata_trans_pass debug (node:t_node) : t_node option=
       n_outputs = node.n_outputs;
       n_local_vars = (new_ty@ty, vars@loc_vars);
       n_equations = eqs@node.n_equations;
-      n_automata = node.n_automata;
+      n_automata = []; (* not needed anymore *)
     }
+
+let automata_translation_pass verbose debug main_fn = 
+  node_pass (automata_trans_pass debug)
+
 
