@@ -257,7 +257,7 @@ let pass_linearization verbose debug main_fn =
       List.fold_left
         (fun (eqs, vars) eq ->
           let es, vs = pre_aux_equation vars eq in
-          es @ eqs, ((fst vs) @ (fst vars), (snd vs) @ (snd vars)))
+          es @ eqs, vars)
         ([], node.n_local_vars)
         new_equations
       in
