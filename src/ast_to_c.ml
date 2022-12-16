@@ -62,6 +62,7 @@ let rec pp_retvarlist fmt : t_varlist -> unit = function
       Format.fprintf fmt "bool, %a" pp_retvarlist (tl, h' :: l)
   | _ -> raise (MyTypeError "This exception should not have beed be raised.")
 
+(* could do as before with an enum to avoid repeating functions with the same arguments *)
 let rec pp_prevarlist node_name fmt : t_varlist -> unit = function
   | ([], []) -> ()
   | ([TInt] , IVar h :: []) -> Format.fprintf fmt "int pre_%s_%s;" node_name h
@@ -80,6 +81,19 @@ let rec pp_asnprevarlist node_name fmt : t_varlist -> unit = function
   | ([TInt] , IVar h :: []) | ([TReal], RVar h :: []) | ([TBool], BVar h :: []) -> Format.fprintf fmt "\tpre_%s_%s = %s;" node_name h h
   | (TInt :: tl,  IVar h :: h' :: l) | (TBool :: tl, BVar h :: h' :: l) | (TReal :: tl, RVar h :: h' :: l) ->
       Format.fprintf fmt "\tpre_%s_%s = %s;\n%a" node_name h h (pp_asnprevarlist node_name) (tl, h' :: l)
+  | _ -> raise (MyTypeError "This exception should not have beed be raised.")
+
+let rec pp_decoutvarlist node_name fmt : t_varlist -> unit = function
+  | ([], []) -> ()
+  | ([TInt] , IVar h :: []) -> Format.fprintf fmt "int output_%s_%s;" node_name h
+  | ([TReal], RVar h :: []) -> Format.fprintf fmt "float output_%s_%s;" node_name h
+  | ([TBool], BVar h :: []) -> Format.fprintf fmt "bool output_%s_%s;" node_name h
+  | (TInt :: tl,  IVar h :: h' :: l) ->
+      Format.fprintf fmt "int output_%s_%s;\n%a" node_name h (pp_decoutvarlist node_name) (tl, h' :: l)
+  | (TBool :: tl, BVar h :: h' :: l) ->
+      Format.fprintf fmt "float output_%s_%s;\n%a" node_name h (pp_decoutvarlist node_name) (tl, h' :: l)
+  | (TReal :: tl, RVar h :: h' :: l) ->
+      Format.fprintf fmt "bool output_%s_%s;\n%a" node_name h (pp_decoutvarlist node_name) (tl, h' :: l)
   | _ -> raise (MyTypeError "This exception should not have beed be raised.")
 
 let reset_expressions_counter = ref 0;;
@@ -189,7 +203,9 @@ let pp_expression node_name =
 
 let rec pp_equations node_name fmt: t_eqlist -> unit = function
   | [] -> ()
-  | (([], []), (ETuple ([], []))) :: eqs -> Format.fprintf fmt "%a" (pp_equations node_name) eqs
+  (* (o0, o1) = test() *)
+  (*| ((l_type :: l_types, var :: vars), (EApp (r_type :: r_types, node, expr) :: eqs -> Format.fprintf fmt "%a" (pp_equations node_name) ((([l_type], [var]), expr) :: ((l_types, vars), (ETuple (r_types, exprs))) :: eqs)*)
+  (*| (([], []), (ETuple ([], []))) :: eqs -> Format.fprintf fmt "%a" (pp_equations node_name) eqs*)
   | ((l_type :: l_types, var :: vars), (ETuple (r_type :: r_types, expr :: exprs))) :: eqs -> Format.fprintf fmt "%a" (pp_equations node_name) ((([l_type], [var]), expr) :: ((l_types, vars), (ETuple (r_types, exprs))) :: eqs)
   | (patt, expr) :: eqs ->
       Format.fprintf fmt "\t%a = %a;\n%a"
@@ -208,23 +224,24 @@ let pp_node fmt node =
         - `init_{NODE_NAME}`
         - `tmp_reset_{int}`
         - `init_{int}`
-        - `pre_{NODE_MAIN}_{VARIABLE}` *)
+        - `pre_{NODE_NAME}_{VARIABLE}`
+        - `output_{NODE_NAME}_{VARIABLE}` *)
   reset_expressions_counter := 0;
   let _ = (pp_equations node.n_name) Format.str_formatter node.n_equations in
   reset_expressions_counter := 0;
-  Format.fprintf fmt "bool init_%s = true;\n\n%a\n\n%a\n\n%a\n\n%s\n\n%a %s(%a)\n{\n\t%a\n\n\t%a\n\n%a\n\tinit_%s = false;\n\n%a\n\n%a\n\n%a\n\n\treturn %a;\n}\n"
+  Format.fprintf fmt "bool init_%s = true;\n\n%a\n\n%a\n\n%a\n\n%a\n\n%s\n\n%a %s(%a)\n{\n\t%a\n\n%a\n\tinit_%s = false;\n\n%a\n\n%a\n\n%a\n\n\treturn %a;\n}\n"
     node.n_name
     (* could avoid declaring unused variables *)
     (pp_prevarlist node.n_name) node.n_inputs
     (pp_prevarlist node.n_name) node.n_local_vars
     (pp_prevarlist node.n_name) node.n_outputs
+    (pp_decoutvarlist node.n_name) node.n_outputs
     (pp_resvars !reset_expressions_counter)
     pp_retvarlist node.n_outputs
     node.n_name
     (* could avoid newlines if they aren't used to seperate statements *)
     (pp_varlist Arg) node.n_inputs
     (pp_varlist Dec) node.n_local_vars
-    (pp_varlist Dec) node.n_outputs
     (pp_equations node.n_name) node.n_equations
     node.n_name
     (pp_asnprevarlist node.n_name) node.n_inputs
