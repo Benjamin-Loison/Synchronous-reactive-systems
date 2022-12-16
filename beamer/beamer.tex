@@ -1,4 +1,11 @@
 \documentclass{beamer}
+\usepackage{listings}
+\lstset{
+  basicstyle=\ttfamily,
+  columns=fullflexible,
+  frame=single,
+  breaklines=true,
+}
 \usepackage{tikz}
 
 \usetikzlibrary{positioning}
@@ -117,6 +124,23 @@
 			\item (no longer required) Push the \texttt{pre} to variables
 		\end{itemize}
 	\end{block}
+\end{frame}
+
+\begin{frame}[fragile]{Translation of automaton}
+	\only<1>{\lstinputlisting[language=ml, firstline=1, lastline=7]{code/example_automaton.lus}}
+	\only<2>{\lstinputlisting[language=ml, firstline=9, lastline=14]{code/example_automaton.lus}}
+\end{frame}
+\begin{frame}{Restriction on automaton}
+	The patterns that appears on the left of equations must be the
+	same in all branches
+
+	\only<2>{\lstinputlisting[language=ml, firstline=16, lastline=22]{code/example_automaton.lus}}
+\end{frame}
+
+\begin{frame}{Clock unification}
+
+	Derived from the rules provided in \emph{Clock-directed Modular Code Generation for Synchronous
+	Data-flow Languages}
 \end{frame}
 
 \section{Translation to C}
