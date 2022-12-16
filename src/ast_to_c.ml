@@ -1,12 +1,5 @@
 open Ast
 
-let pp_loc fmt (start, stop) =
-  Lexing.(
-    Format.fprintf fmt "%s: <l: %d, c: %d> -- <l: %d, c: %d>"
-      start.pos_fname
-      start.pos_lnum start.pos_cnum
-      stop.pos_lnum stop.pos_cnum)
-
 type var_list_delim =
   | Base
   | Arg
