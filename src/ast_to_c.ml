@@ -203,7 +203,7 @@ let prepend_output output node_name =
 
 let rec pp_equations node_name fmt: t_eqlist -> unit = function
   | [] -> ()
-  | ((l_types, vars), (EApp (r_types, node, exprs))) :: eqs when l_types <> [] -> Format.fprintf fmt "%a" (pp_equations node_name) ((([], []), (EApp (r_types, node, exprs))) :: ((l_types, vars), ((*Hashtbl.find nodes_outputs node*) ETuple (fst node.n_outputs, List.map (fun output -> EVar (fst node.n_outputs, prepend_output output node.n_name)) (snd node.n_outputs)))) :: eqs)
+  | ((l_types, vars), (EApp (r_types, node, exprs))) :: eqs when l_types <> [] -> Format.fprintf fmt "%a" (pp_equations node_name) ((([], []), (EApp (r_types, node, exprs))) :: ((l_types, vars), (ETuple (fst node.n_outputs, List.map (fun output -> EVar (fst node.n_outputs, prepend_output output node.n_name)) (snd node.n_outputs)))) :: eqs)
   | (([], []), (ETuple ([], []))) :: eqs -> Format.fprintf fmt "%a" (pp_equations node_name) eqs
   | ((l_type :: l_types, var :: vars), (ETuple (r_type :: r_types, expr :: exprs))) :: eqs -> Format.fprintf fmt "%a" (pp_equations node_name) ((([l_type], [var]), expr) :: ((l_types, vars), (ETuple (r_types, exprs))) :: eqs)
   | (([], []), expr) :: eqs ->
@@ -228,7 +228,6 @@ let pp_return node_name fmt outputs =
     else
         Format.fprintf fmt "%s" (String.concat "\n\t" (List.map (fun output -> match output with | BVar name | IVar name | RVar name -> "output_" ^ node_name ^ "_" ^ name ^ " = " ^ name ^ ";") (snd outputs)))
 
-(* TODO: manage general outputs *)
 let pp_node fmt node =
     (* undefined behavior if the initial code uses a variable with name:
         - `init_{NODE_NAME}`
@@ -239,7 +238,6 @@ let pp_node fmt node =
   reset_expressions_counter := 0;
   let _ = (pp_equations node.n_name) Format.str_formatter node.n_equations in
   reset_expressions_counter := 0;
-  (* could remove the `return` for functions other than the `main` one *)
   Format.fprintf fmt "bool init_%s = true;\n\n%a\n\n%a\n\n%a\n\n%s\n\n%s %s(%a)\n{\n\t%a\n\n\t%a\n\n%a\n\n\tinit_%s = false;\n\n%a\n\n%a\n\n%a\n\n\t%a\n}\n"
     node.n_name
     (* could avoid declaring unused variables *)
