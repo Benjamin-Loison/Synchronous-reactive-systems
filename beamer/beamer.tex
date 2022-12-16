@@ -110,18 +110,46 @@
 \end{frame}
 
 \section{Passes}
-\begin{frame}{Passes}
+\begin{frame}{}
+    \begin{block}{Classification}
+        \begin{itemize}
+            \item node-passes: for all nodes, do \texttt{P: t\_node -> t\_node
+            option}
+            \pause
+            \item equation-passes: for all equations of all nodes, do
+            \texttt{P: t\_equation -> t\_equation option}
+            (the definition uses the node-passes constructor)
+            \pause
+            \item expression-passes: for all expression of all equations, do
+            \texttt{P: t\_expression -> t\_expression option}
+            (the definition uses the equation-passes constructor)
+        \end{itemize}
+    \end{block}
+\end{frame}
+\begin{frame}{Implemented Passes}
 	\begin{block}{Sanity checks}
 		\begin{itemize}
 			\item Check the well-typedness of a program
+            \pause
 			\item Check that there are no assignment conflicts in a programs
+            (node-pass)
 		\end{itemize}
 	\end{block}
 	\begin{block}{AST modification}
 		\begin{itemize}
 			\item Rewrite automata into \texttt{if-then-else} constructs
-			\item Linearization of the equations
+            (node-pass)
+            \pause
+			\item Linearization of the equations:
+            \begin{itemize}
+                \item for all, \texttt{pre e} add a, intermediate variable
+                \item \texttt{v1, v2, v3 = f(i), e3;} is rewritten into
+                \texttt{v1, v2 = f(i); v3 = e3;}
+            \end{itemize}
+            (node-pass)
+            \pause
 			\item (no longer required) Push the \texttt{pre} to variables
+            (expression-pass)
 		\end{itemize}
 	\end{block}
 \end{frame}
