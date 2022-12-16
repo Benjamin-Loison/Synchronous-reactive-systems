@@ -199,7 +199,7 @@ node_content:
           n_local_vars = $10;
           n_equations  = eqs;
           n_automata = aut; } in
-      if List.length (snd $10) = 0 && node_name <> "main"
+      if List.length t_in = 0
         then raise (MyParsingError
                     (Format.asprintf "The node %s should have arguments."
                       node_name,
