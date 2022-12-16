@@ -267,7 +267,7 @@ let pass_linearization verbose debug main_fn =
         n_name = node.n_name;
         n_inputs = node.n_inputs;
         n_outputs = node.n_outputs;
-        n_local_vars = node.n_local_vars;
+        n_local_vars = new_locvars;
         n_equations = new_equations;
         n_automata = node.n_automata;
       }
