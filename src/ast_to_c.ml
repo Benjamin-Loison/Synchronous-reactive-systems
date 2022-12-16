@@ -199,7 +199,7 @@ let rec pp_equations node_name fmt: t_eqlist -> unit = function
 
 (* By prepending to the `Format.formatter` `fmt` we could just declare these arrays once with a size of the maximum `reset_expressions_counter` *)
 let pp_resvars reset_expressions_counter =
-    (* use the fact that any boolean and any integer can be encoded as a float *)
+    (* use the fact that any boolean and any integer can be encoded as a float, concerning integers [-2^(23+1) + 1; 2^(23+1) + 1] are correctly encoded (cf https://stackoverflow.com/a/53254438) *)
     Format.sprintf "float tmp_reset[%i], init[%i];" reset_expressions_counter reset_expressions_counter
 
 (* TODO: manage general outputs *)
