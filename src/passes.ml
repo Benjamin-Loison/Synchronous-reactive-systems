@@ -201,9 +201,14 @@ let pass_linearization verbose debug main_fn =
           eqs @ eqs', vars, EBinOp (t, op, e, e')
       | ETriOp (t, op, e, e', e'') ->
           let eqs, vars, e = pre_aux_expression vars e in
+          let nvar: string = fresh_var_name vars 6 in
+          let nvar: t_var = BVar nvar in
+          let neq_patt: t_varlist = ([TBool], [nvar]) in
+          let neq_expr: t_expression = e in
+          let vars = varlist_concat vars (neq_patt) in
           let eqs', vars, e' = pre_aux_expression vars e' in
           let eqs'', vars, e'' = pre_aux_expression vars e'' in
-          eqs @ eqs' @ eqs'', vars, ETriOp (t, op, e, e', e'')
+          (neq_patt, neq_expr) :: eqs @ eqs' @ eqs'', vars, ETriOp (t, op, e, e', e'')
       | EComp  (t, op, e, e') ->
           let eqs, vars, e = pre_aux_expression vars e in
           let eqs', vars, e' = pre_aux_expression vars e' in
@@ -257,7 +262,7 @@ let pass_linearization verbose debug main_fn =
       List.fold_left
         (fun (eqs, vars) eq ->
           let es, vs = pre_aux_equation vars eq in
-          es @ eqs, vars)
+          es @ eqs, vs)
         ([], node.n_local_vars)
         new_equations
       in
