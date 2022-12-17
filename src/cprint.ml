@@ -90,6 +90,14 @@ let rec cp_value fmt (value, (hloc: (ident * bool, string * int) Hashtbl.t)) =
     | BOp_or  -> "||"
     | BOp_arrow -> failwith "[cprint.ml] string_of_binop undefined on (->)"
   in
+  let string_of_compop = function
+    | COp_eq -> "=="
+    | COp_neq -> "!="
+    | COp_le -> "<="
+    | COp_lt -> "<"
+    | COp_ge -> ">="
+    | COp_gt -> ">"
+  in
   match value with
   | CVariable (CVInput s) -> Format.fprintf fmt "%s" s
   | CVariable (CVStored (arr, idx)) -> Format.fprintf fmt "state->%s[%d]" arr idx
@@ -114,14 +122,16 @@ let rec cp_value fmt (value, (hloc: (ident * bool, string * int) Hashtbl.t)) =
   | CBinOp (op, v, v') ->
       Format.fprintf fmt "(%a) %s (%a)"
         cp_value (v, hloc) (string_of_binop op) cp_value (v', hloc)
-  (**| CComp of compop * c_value * c_value*)
-  | _ -> failwith "[cprint.ml] TODO!"
-
+  | CComp (op, v, v') ->
+      Format.fprintf fmt "(%a) %s (%a)"
+        cp_value (v, hloc) (string_of_compop op) cp_value (v', hloc)
+  | CMonOp (MOp_pre, _) ->
+      failwith "[cprint.ml] The linearization should have removed this case."
 
 
 (** The following function prints one transformed equation of the program into a
   * set of instruction ending in assignments. *)
-let cp_expression fmt (expr, hloc) =
+let rec cp_expression fmt (expr, hloc) =
   let prefix = "\t" in
   match expr with
   | CAssign (CVStored (arr, idx), value) ->
@@ -130,7 +140,11 @@ let cp_expression fmt (expr, hloc) =
         prefix arr idx cp_value (value, hloc)
     end
   | CAssign (CVInput _, _) -> failwith "should not happend."
-  (*| CSeq of c_expression * c_expression
-  | CIf of c_value * c_block * c_block
+  | CSeq (e, e') ->
+      Format.fprintf fmt "%a%a"
+        cp_expression (e, hloc)
+        cp_expression (e', hloc)
+  (**| CIf of c_value * c_block * c_block
   | CApplication of c_var list * c_expression*)
   | _ -> failwith "[cprint.ml] TODO!"
+
