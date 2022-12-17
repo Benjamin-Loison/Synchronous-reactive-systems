@@ -1,5 +1,11 @@
-node main (i: int) returns (o1: int);
+node diagonal_int (i: int) returns (o1, o2 : int);
 let
-    o1 = 10 -> pre (20 -> 30);
+	(o1, o2) = (i, i);
+tel
+
+node main (i: int) returns (o1, o2, o3, o4: int);
+let
+    (o1, o2) = diagonal_int(i);
+    (o3, o4) = diagonal_int(o1);
 tel
 

@@ -3,4 +3,4 @@
     * variables. *)
 let maxvar = 100
 
-let c_includes = "#include <stdbool.h>"
+let c_includes = ["stdbool"; "stdlib"]
