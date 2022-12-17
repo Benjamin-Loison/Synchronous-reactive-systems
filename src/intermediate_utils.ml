@@ -40,3 +40,11 @@ let rec find_app_opt eqs i =
     match find_app_expr_opt i expr with
     | None -> find_app_opt eqs i
     | Some n -> Some n
+
+let find_varname h v =
+  Hashtbl.fold
+    (fun s e acc ->
+      match acc with
+      | None -> if e = v then Some s else None
+      | Some _ -> acc)
+    h None

@@ -2,14 +2,27 @@ open Ast
 open Intermediate_ast
 open Cast
 
-let iexpression_to_cvalue e = ()
+let rec iexpression_to_cvalue e =
+  match e with
+  | IEVar   v -> CVariable v
+  | IEMonOp (op, e) -> CMonOp (op, iexpression_to_cvalue e)
+  | IEBinOp (op, e, e') ->
+      CBinOp (op, iexpression_to_cvalue e, iexpression_to_cvalue e')
+  | IEComp  (op, e, e') ->
+      CComp (op, iexpression_to_cvalue e, iexpression_to_cvalue e')
+  | IEConst c -> CConst c
+  | IEWhen  _
+  | IEReset _
+  | IETuple _
+  | IEApp   _
+  | IETriOp _ -> failwith "[ctranslation.ml] Should not happened."
 
-let equation_to_expression (hloc, ((vl, expr): i_equation)) : c_expression =
+let equation_to_expression ((hloc: (ident * bool, string * int)Hashtbl.t), ((vl, expr): i_equation)) : c_expression =
   let fetch_unique_var () =
     match vl with
     | [v] ->
       begin
-        match Hashtbl.find_opt hloc (v, false) with
+        match Hashtbl.find_opt hloc (Utils.name_of_var v, false) with
         | None -> CVInput (Utils.name_of_var v)
         | Some (arr, idx) -> CVStored (arr, idx)
       end
@@ -22,11 +35,13 @@ let equation_to_expression (hloc, ((vl, expr): i_equation)) : c_expression =
       CAssign (fetch_unique_var (), CVariable v)
   | IEConst c ->
       CAssign (fetch_unique_var (), CConst c)
-  (*| IEMonOp (op, e) ->
-      CMonOp (op, iexpression_to_cvalue e)
+  | IEMonOp (op, e) ->
+      CAssign (fetch_unique_var (),
+                CMonOp (op, iexpression_to_cvalue e))
   | IEBinOp (op, e, e') ->
-      CBinOp (op, iexpression_to_cvalue e, iexpression_to_cvalue e')
-  | IEComp  (op, e, e') ->
+      CAssign (fetch_unique_var (),
+                CBinOp (op, iexpression_to_cvalue e, iexpression_to_cvalue e'))
+  (*| IEComp  (op, e, e') ->
       CComp (op, iexpression_to_cvalue e, iexpression_to_cvalue e')
   | IEConst c -> CConst c
   TODO!

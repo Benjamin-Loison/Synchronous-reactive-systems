@@ -79,20 +79,32 @@ let rec cp_prototypes fmt ((nodes, h): i_nodelist * node_states) =
 
 
 
-let cp_value fmt value =
+let rec cp_value fmt (value, (hloc: (ident * bool, string * int) Hashtbl.t)) =
   match value with
   | CVariable (CVInput s) -> Format.fprintf fmt "%s" s
-  | CVariable (CVStored (arr, idx)) ->
-      Format.fprintf fmt "%s[%d]" arr idx
+  | CVariable (CVStored (arr, idx)) -> Format.fprintf fmt "%s[%d]" arr idx
   | CConst (CInt i) -> Format.fprintf fmt "%d" i
   | CConst (CBool true) -> Format.fprintf fmt "true"
   | CConst (CBool false) -> Format.fprintf fmt "false"
   | CConst (CReal r) -> Format.fprintf fmt "%f" r
-  (**| CMonOp of monop * c_value
-  | CBinOp of binop * c_value * c_value
-  | CComp of compop * c_value * c_value*)
+  | CMonOp (MOp_not, v) -> Format.fprintf fmt "! (%a)" cp_value (v, hloc)
+  | CMonOp (MOp_minus, v) -> Format.fprintf fmt "- (%a)" cp_value (v, hloc)
+  | CMonOp (MOp_pre, (CVariable v)) ->
+      let varname = (match v with
+                    | CVStored (arr, idx) ->
+                      begin
+                        match find_varname hloc (arr, idx) with
+                        | None -> failwith "[cprint.ml] This varname should be defined."
+                        | Some (n, _) -> n
+                      end
+                    | CVInput n -> n) in
+      let (arr, idx) = Hashtbl.find hloc (varname, true) in
+      Format.fprintf fmt "%s[%d]" arr idx
+  | CBinOp (BOp_add, v, v') ->
+      Format.fprintf fmt "(%a) + (%a)"
+        cp_value (v, hloc) cp_value (v', hloc)
+  (**| CComp of compop * c_value * c_value*)
   | _ -> failwith "[cprint.ml] TODO!"
-
 
 
 
@@ -104,7 +116,7 @@ let cp_expression fmt (expr, hloc) =
   | CAssign (CVStored (arr, idx), value) ->
     begin
       Format.fprintf fmt "%s%s[%d] = %a;\n"
-        prefix arr idx cp_value value
+        prefix arr idx cp_value (value, hloc)
     end
   | CAssign (CVInput _, _) -> failwith "should not happend."
   (*| CSeq of c_expression * c_expression

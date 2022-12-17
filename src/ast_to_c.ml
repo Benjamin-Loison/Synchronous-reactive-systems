@@ -14,7 +14,7 @@ let ast_to_intermediate_ast (nodes: t_nodelist) (h: node_states): i_nodelist =
   let rec ast_to_intermediate_ast_expr hloc = function
     | EVar   (_, v) ->
         begin
-        match Hashtbl.find_opt hloc (v, false) with
+        match Hashtbl.find_opt hloc (Utils.name_of_var v, false) with
         | None -> IEVar (CVInput (name_of_var v))
         | Some (s, i) -> IEVar (CVStored (s, i))
         end
@@ -77,8 +77,10 @@ let make_state_types nodes: node_states =
         (snd (varlist_concat (varlist_concat node.n_inputs node.n_outputs) node.n_local_vars)) in
     let pre_vars =
       List.filter (fun v -> List.mem v pv) all_vars in
+    let vars = List.map Utils.name_of_var vars in
+    let pre_vars = List.map Utils.name_of_var pre_vars in
     let nb = (List.length vars) + (List.length pre_vars) in
-    let tyh = Hashtbl.create nb in
+    let tyh: (ident * bool, int) Hashtbl.t = Hashtbl.create nb in
     let i =
       List.fold_left
         (fun i v -> let () = Hashtbl.add tyh (v, false) i in i + 1) 0 vars in
@@ -162,14 +164,14 @@ let make_state_types nodes: node_states =
         let () = List.iteri
           (fun n (v: t_var) ->
             match v with
-            | IVar _ ->
-                let i = Hashtbl.find h_int (v, false) in
+            | IVar s ->
+                let i = Hashtbl.find h_int (s, false) in
                 Hashtbl.add h_out n ("ivars", i)
-            | BVar _ ->
-                let i = Hashtbl.find h_bool (v, false) in
+            | BVar s ->
+                let i = Hashtbl.find h_bool (s, false) in
                 Hashtbl.add h_out n ("bvars", i)
-            | RVar _ ->
-                let i = Hashtbl.find h_real (v, false) in
+            | RVar s ->
+                let i = Hashtbl.find h_real (s, false) in
                 Hashtbl.add h_out n ("rvars", i))
           (snd node.n_outputs) in
         let () = Hashtbl.add h node_name
@@ -217,9 +219,9 @@ let cp_prevars fmt (node, h) =
           | None -> 
             let (dst_array, dst_idx) = Hashtbl.find node_st.nt_map (v, true) in
             Format.fprintf fmt "\t%s[%d] = %s;\n"
-              dst_array dst_idx (Utils.name_of_var v)
+              dst_array dst_idx v
           )
-        l
+        (List.map Utils.name_of_var l)
 
 
 
@@ -257,7 +259,7 @@ let rec cp_equations fmt (eqs, hloc) =
   | [] -> ()
   | eq :: eqs ->
     Format.fprintf fmt "%a%a"
-      cp_expression (equation_to_expression (hloc.nt_map, eq), hloc)
+      cp_expression (equation_to_expression (hloc.nt_map, eq), hloc.nt_map)
       cp_equations (eqs, hloc)
 
 (** [cp_node] prints a single node *)
@@ -284,20 +286,10 @@ let dump_var_locations (st: node_states) =
     (fun n st ->
       Format.printf "\n\n\tNODE: %s\n" n;
     Hashtbl.iter
-    (fun ((v: t_var), (ispre: bool)) ((arr: string), (idx: int)) ->
-      match v, ispre with
-      | IVar s, true -> Format.printf "PRE Variable (int) %s stored as %s[%d]\n"
-                          s arr idx
-      | BVar s, true -> Format.printf "PRE Variable (bool) %s stored as %s[%d]\n"
-                          s arr idx
-      | RVar s, true -> Format.printf "PRE Variable (real) %s stored as %s[%d]\n"
-                          s arr idx
-      | IVar s, false -> Format.printf "Variable (int) %s stored as %s[%d]\n"
-                          s arr idx
-      | BVar s, false -> Format.printf "Variable (bool) %s stored as %s[%d]\n"
-                          s arr idx
-      | RVar s, false -> Format.printf "Variable (real) %s stored as %s[%d]\n"
-                          s arr idx)
+    (fun (s, (ispre: bool)) ((arr: string), (idx: int)) ->
+      match ispre with
+      | true -> Format.printf "PRE Variable %s stored as %s[%d]\n" s arr idx
+      | false -> Format.printf "    Variable %s stored as %s[%d]\n" s arr idx)
     st.nt_map)
     st;
     Format.printf "\n\n"

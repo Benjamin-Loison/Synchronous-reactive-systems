@@ -1,0 +1,7 @@
+node n (i: int) returns (o: int);
+var v, t: int;
+let
+  o = 1;
+  v = pre o;
+  t = o + pre i;
+tel
