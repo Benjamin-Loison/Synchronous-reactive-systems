@@ -80,9 +80,19 @@ let rec cp_prototypes fmt ((nodes, h): i_nodelist * node_states) =
 
 
 let rec cp_value fmt (value, (hloc: (ident * bool, string * int) Hashtbl.t)) =
+  let string_of_binop = function
+    | BOp_add -> "+"
+    | BOp_sub -> "-"
+    | BOp_mul -> "*"
+    | BOp_div -> "/"
+    | BOp_mod -> "%"
+    | BOp_and -> "&&"
+    | BOp_or  -> "||"
+    | BOp_arrow -> failwith "[cprint.ml] string_of_binop undefined on (->)"
+  in
   match value with
   | CVariable (CVInput s) -> Format.fprintf fmt "%s" s
-  | CVariable (CVStored (arr, idx)) -> Format.fprintf fmt "%s[%d]" arr idx
+  | CVariable (CVStored (arr, idx)) -> Format.fprintf fmt "state->%s[%d]" arr idx
   | CConst (CInt i) -> Format.fprintf fmt "%d" i
   | CConst (CBool true) -> Format.fprintf fmt "true"
   | CConst (CBool false) -> Format.fprintf fmt "false"
@@ -99,10 +109,11 @@ let rec cp_value fmt (value, (hloc: (ident * bool, string * int) Hashtbl.t)) =
                       end
                     | CVInput n -> n) in
       let (arr, idx) = Hashtbl.find hloc (varname, true) in
-      Format.fprintf fmt "%s[%d]" arr idx
-  | CBinOp (BOp_add, v, v') ->
-      Format.fprintf fmt "(%a) + (%a)"
-        cp_value (v, hloc) cp_value (v', hloc)
+      Format.fprintf fmt "state->%s[%d]" arr idx
+  | CBinOp (BOp_arrow, v, v') ->  failwith "[cprint.ml] (->) TODO!"
+  | CBinOp (op, v, v') ->
+      Format.fprintf fmt "(%a) %s (%a)"
+        cp_value (v, hloc) (string_of_binop op) cp_value (v', hloc)
   (**| CComp of compop * c_value * c_value*)
   | _ -> failwith "[cprint.ml] TODO!"
 
@@ -115,7 +126,7 @@ let cp_expression fmt (expr, hloc) =
   match expr with
   | CAssign (CVStored (arr, idx), value) ->
     begin
-      Format.fprintf fmt "%s%s[%d] = %a;\n"
+      Format.fprintf fmt "%sstate->%s[%d] = %a;\n"
         prefix arr idx cp_value (value, hloc)
     end
   | CAssign (CVInput _, _) -> failwith "should not happend."

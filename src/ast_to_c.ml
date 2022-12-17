@@ -214,11 +214,11 @@ let cp_prevars fmt (node, h) =
           match Hashtbl.find_opt node_st.nt_map (v, false) with
           | Some (src_array, src_idx) ->
             let (dst_array, dst_idx) = Hashtbl.find node_st.nt_map (v, true) in
-            Format.fprintf fmt "\t%s[%d] = %s[%d];\n"
+            Format.fprintf fmt "\tstate->%s[%d] = state->%s[%d];\n"
               dst_array dst_idx src_array src_idx
           | None -> 
             let (dst_array, dst_idx) = Hashtbl.find node_st.nt_map (v, true) in
-            Format.fprintf fmt "\t%s[%d] = %s;\n"
+            Format.fprintf fmt "\tstate->%s[%d] = %s;\n"
               dst_array dst_idx v
           )
         (List.map Utils.name_of_var l)
