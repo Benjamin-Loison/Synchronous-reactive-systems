@@ -118,7 +118,9 @@ let rec cp_value fmt (value, (hloc: (ident * bool, string * int) Hashtbl.t)) =
                     | CVInput n -> n) in
       let (arr, idx) = Hashtbl.find hloc (varname, true) in
       Format.fprintf fmt "state->%s[%d]" arr idx
-  | CBinOp (BOp_arrow, v, v') ->  failwith "[cprint.ml] (->) TODO!"
+  | CBinOp (BOp_arrow, v, v') ->
+      Format.fprintf fmt "(state->is_init ? (%a) : (%a))"
+        cp_value (v, hloc) cp_value (v', hloc)
   | CBinOp (op, v, v') ->
       Format.fprintf fmt "(%a) %s (%a)"
         cp_value (v, hloc) (string_of_binop op) cp_value (v', hloc)

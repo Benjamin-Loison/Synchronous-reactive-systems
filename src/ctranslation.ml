@@ -41,10 +41,10 @@ let equation_to_expression ((hloc: (ident * bool, string * int)Hashtbl.t), ((vl,
   | IEBinOp (op, e, e') ->
       CAssign (fetch_unique_var (),
                 CBinOp (op, iexpression_to_cvalue e, iexpression_to_cvalue e'))
-  (*| IEComp  (op, e, e') ->
-      CComp (op, iexpression_to_cvalue e, iexpression_to_cvalue e')
-  | IEConst c -> CConst c
-  TODO!
+  | IEComp  (op, e, e') ->
+      CAssign (fetch_unique_var (),
+                CComp (op, iexpression_to_cvalue e, iexpression_to_cvalue e'))
+  (*TODO!
   | IETriOp of triop * i_expression * i_expression * i_expression
   | IEWhen  of i_expression * i_expression
   | IEReset of i_expression * i_expression
