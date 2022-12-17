@@ -20,6 +20,7 @@ open Ast
           int ivars[nt_nb_int];  (or nothing if nt_nb_int = 0)
           int bvars[nt_nb_bool]; (or nothing if nt_nb_bool = 0)
           int rvars[nt_nb_real]; (or nothing if nt_nb_real = 0)
+          bool is_init;
       } t_state_<node name>;
   *)
 type node_state =

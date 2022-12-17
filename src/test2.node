@@ -3,11 +3,3 @@ let
     o1 = 10 -> pre (20 -> 30);
 tel
 
-node flipflop(i: int) returns (z: int);
-var x, y: int; c: bool;
-let
-	c = true fby (not c);
-	x = 1 on c;
-	y = 2 on (not c);
-	z = merge c x y;
-tel

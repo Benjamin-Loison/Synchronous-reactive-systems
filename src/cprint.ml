@@ -5,9 +5,9 @@ let cp_node_state fmt (st: node_state) =
   let maybeprint fmt (ty, nb, name): unit =
     if nb = 0
       then ()
-      else Format.fprintf fmt "\n\t%s %s[%d]" ty name nb
+      else Format.fprintf fmt "\n\t%s %s[%d];" ty name nb
   in
-  Format.fprintf fmt "typedef struct {%a%a%a\n} %s;\n\n"
+  Format.fprintf fmt "typedef struct {%a%a%a\n\tbool is_init;\n} %s;\n\n"
     maybeprint ("int", st.nt_nb_int, "ivars")
     maybeprint ("bool", st.nt_nb_bool, "bvars")
     maybeprint ("double", st.nt_nb_real, "rvars")
@@ -58,6 +58,8 @@ let rec cp_prototypes fmt (nodes, h) =
 (** The ollowing function prints the code to remember previous values of
   * variables used with the pre construct. *)
 let cp_prevars fmt (node, h) =
+  Format.fprintf fmt
+    "\n\t/* Remember the values of variables used in the [pre] construct */\n";
   let node_st = Hashtbl.find h node.n_name in
   List.iter
     (fun v -> (** Note that «dst_array = src_array» should hold. *)
@@ -68,7 +70,7 @@ let cp_prevars fmt (node, h) =
     node_st.nt_prevars
 
 let rec cp_node fmt (node, h) =
-  Format.fprintf fmt "%a\n{\nTODO...\n%a}\n"
+  Format.fprintf fmt "%a\n{\n\t\tTODO...\n\n\tstate->is_init = false;\n%a}\n"
     cp_prototype (node, h)
     cp_prevars (node, h)
 
