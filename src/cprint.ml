@@ -1,5 +1,5 @@
-open C_utils
-open Cast
+open Intermediate_utils
+open Intermediate_ast
 open Ast
 
 (** This file contains extrimely simple functions printing C code. *)

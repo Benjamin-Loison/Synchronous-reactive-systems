@@ -17,7 +17,7 @@ let exec_passes ast main_fn verbose debug passes f =
         match p verbose debug main_fn ast with
         | None -> (exit_error ("Error while in the pass "^n^".\n"); exit 0)
         | Some ast -> (
-        debug (Format.asprintf "Current AST (after %s):\n%a\n" n Pp.pp_ast ast);
+        debug (Format.asprintf "Current AST (after %s):\n%a\n" n Lustre_pp.pp_ast ast);
         aux ast passes)
   in
   aux ast passes
@@ -34,7 +34,6 @@ let _ =
   let debug = ref false in
   let ppast = ref false in
   let nopopt = ref false in
-  let simopt = ref false in
   let passes = ref [] in
   let source_file = ref "" in
   let testopt = ref false in
@@ -51,7 +50,6 @@ let _ =
       ("-debug", Arg.Set debug, "Output a lot of debug information");
       ("-p", Arg.String (fun s -> passes := s :: !passes),
             "Add a pass to the compilation process");
-      ("-sim", Arg.Set simopt, "Simulate the main node");
       ("-o", Arg.Set_string output_file, "Output file (defaults to [out.c])");
     ] in
   Arg.parse speclist anon_fun usage_msg ;
@@ -93,7 +91,7 @@ let _ =
       begin
         close_in_noerr inchan;
         Format.printf "Syntax error at %a: %s\n\n"
-          Pp.pp_loc (l, !source_file) s;
+          Lustre_pp.pp_loc (l, !source_file) s;
         exit 0
       end
     | Parsing.Parse_error ->
@@ -101,7 +99,7 @@ let _ =
         close_in_noerr inchan;
         Parsing.(
         Format.printf "Syntax error at %a\n\n"
-          Pp.pp_loc ((symbol_start_pos (), symbol_end_pos()), !source_file));
+          Lustre_pp.pp_loc ((symbol_start_pos (), symbol_end_pos()), !source_file));
         exit 0
       end
     in
@@ -121,19 +119,14 @@ let _ =
     in
 
   print_debug (Format.asprintf "Initial AST (before executing any passes):\n%a"
-                Pp.pp_ast ast) ;
+                Lustre_pp.pp_ast ast) ;
   exec_passes ast main_fn print_verbose print_debug passes
-    begin
-    if !simopt
-      then Simulation.simulate main_fn
-      else
-        begin
-        if !ppast
-          then (Format.printf "%a" Pp.pp_ast)
-          else (
-            if !nopopt
-              then (fun _ -> ())
-              else Ast_to_c.ast_to_c)
-        end
-    end
+  begin
+  if !ppast
+    then (Format.printf "%a" Lustre_pp.pp_ast)
+    else (
+      if !nopopt
+        then (fun _ -> ())
+        else Ast_to_c.ast_to_c)
+  end
 

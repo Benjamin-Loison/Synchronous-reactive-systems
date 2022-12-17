@@ -1,6 +1,6 @@
 open Ast
-open Cast
-open C_utils
+open Intermediate_ast
+open Intermediate_utils
 open Cprint
 open Utils
 
@@ -55,7 +55,6 @@ let ast_to_cast (nodes: t_nodelist) (h: node_states): c_nodelist =
       }
     end
     nodes
-
 
 (** The following function defines the [node_states] for the nodes of a program,
   * and puts them in a hash table. *)
@@ -198,21 +197,26 @@ let make_state_types nodes: node_states =
 (** The following function prints the code to remember previous values of
   * variables used with the pre construct. *)
 let cp_prevars fmt (node, h) =
-  Format.fprintf fmt
-    "\n\t/* Remember the values of variables used in the [pre] construct */\n";
   let node_st = Hashtbl.find h node.cn_name in
-  List.iter
-    (fun v -> (** Note that «dst_array = src_array» should hold. *)
-      let (src_array, src_idx) = Hashtbl.find node_st.nt_map (v, false) in
-      let (dst_array, dst_idx) = Hashtbl.find node_st.nt_map (v, true) in
-      Format.fprintf fmt "\t%s[%d] = %s[%d];\n"
-        dst_array dst_idx src_array src_idx)
-    node_st.nt_prevars
+  match (Hashtbl.find h node.cn_name).nt_prevars with
+  | [] -> ()
+  | l ->
+      Format.fprintf fmt
+        "\n\t/* Remember the values used in the [pre] construct */\n";
+      List.iter
+        (fun v -> (** Note that «dst_array = src_array» should hold. *)
+          let (src_array, src_idx) = Hashtbl.find node_st.nt_map (v, false) in
+          let (dst_array, dst_idx) = Hashtbl.find node_st.nt_map (v, true) in
+          Format.fprintf fmt "\t%s[%d] = %s[%d];\n"
+            dst_array dst_idx src_array src_idx)
+        l
+
+
 
 (** The following function defines the behaviour to have at the first
   * execution of a node, namely:
   *   - initialize the states of auxiliary nodes
-  * *)
+  *)
 let cp_init_aux_nodes fmt (node, h) =
   let rec aux fmt (node, nst, i) =
     match find_app_opt node.cn_equations i with
@@ -220,7 +224,7 @@ let cp_init_aux_nodes fmt (node, h) =
     | Some n ->
       begin
       Format.fprintf fmt "%a\t\tstate->aux_states[%d] = malloc (sizeof (%s));\n\
-          \t\t(%s*)(state->aux_states[%d])->is_init = true;\n"
+          \t\t((%s*)(state->aux_states[%d]))->is_init = true;\n"
         aux (node, nst, i-1)
         (i-1) (Format.asprintf "t_state_%s" n.n_name)
         (Format.asprintf "t_state_%s" n.n_name) (i-1)
@@ -235,12 +239,33 @@ let cp_init_aux_nodes fmt (node, h) =
         aux (node, nst, nst.nt_count_app)
     end
 
-let rec cp_node fmt (node, h) =
-  Format.fprintf fmt "%a\n{\n%a\t\tTODO...\n\n\tstate->is_init = false;\n%a}\n"
+
+
+(** The following function prints one equation of the program into a set of
+  * instruction ending in assignments. *)
+let cp_equation fmt (eq, hloc) =
+  Format.fprintf fmt "\t\t/* TODO! */\n"
+
+
+
+(** [cp_equations] prints the node equations. *)
+let rec cp_equations fmt (eqs, hloc) =
+  match eqs with
+  | [] -> ()
+  | eq :: eqs ->
+    Format.fprintf fmt "%a%a"
+      cp_equation (eq, hloc)
+      cp_equations (eqs, hloc)
+
+(** [cp_node] prints a single node *)
+let cp_node fmt (node, h) =
+  Format.fprintf fmt "%a\n{\n%a%a\n\n\tstate->is_init = false;\n%a}\n"
     cp_prototype (node, h)
     cp_init_aux_nodes (node, h)
+    cp_equations (node.cn_equations, Hashtbl.find h node.cn_name)
     cp_prevars (node, h)
 
+(** [cp_nodes] recursively prints all the nodes of a program. *)
 let rec cp_nodes fmt (nodes, h) =
   match nodes with
   | [] -> ()
@@ -251,6 +276,7 @@ let rec cp_nodes fmt (nodes, h) =
 
 
 
+(** main function that prints a C-code from a term of type [t_nodelist]. *)
 let ast_to_c prog =
   let prog_st_types = make_state_types prog in
   let prog: c_nodelist = ast_to_cast prog prog_st_types in

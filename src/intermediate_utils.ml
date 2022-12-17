@@ -1,4 +1,4 @@
-open Cast
+open Intermediate_ast
 
 let rec find_app_opt eqs i =
   let rec find_app_expr_opt i = function
