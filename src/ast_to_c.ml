@@ -3,44 +3,45 @@ open Intermediate_ast
 open Intermediate_utils
 open Cprint
 open Utils
+open Ctranslation
 
 
 
-(** [ast_to_cast] translates a [t_nodelist] into a [i_nodelist] *)
-let ast_to_cast (nodes: t_nodelist) (h: node_states): i_nodelist =
+(** [ast_to_intermediate_ast] translates a [t_nodelist] into a [i_nodelist] *)
+let ast_to_intermediate_ast (nodes: t_nodelist) (h: node_states): i_nodelist =
   let c = ref 1 in
-  let ast_to_cast_varlist vl = snd vl in
-  let rec ast_to_cast_expr hloc = function
+  let ast_to_intermediate_ast_varlist vl = snd vl in
+  let rec ast_to_intermediate_ast_expr hloc = function
     | EVar   (_, v) ->
         begin
         match Hashtbl.find_opt hloc (v, false) with
-        | None -> IVar (CVInput (name_of_var v))
-        | Some (s, i) -> IVar (CVStored (s, i))
+        | None -> IEVar (CVInput (name_of_var v))
+        | Some (s, i) -> IEVar (CVStored (s, i))
         end
-    | EMonOp (_, op, e) -> IMonOp (op, ast_to_cast_expr hloc e)
+    | EMonOp (_, op, e) -> IEMonOp (op, ast_to_intermediate_ast_expr hloc e)
     | EBinOp (_, op, e, e') ->
-       IBinOp (op, ast_to_cast_expr hloc e, ast_to_cast_expr hloc e')
+       IEBinOp (op, ast_to_intermediate_ast_expr hloc e, ast_to_intermediate_ast_expr hloc e')
     | ETriOp (_, op, e, e', e'') ->
-        ITriOp
-          (op, ast_to_cast_expr hloc e, ast_to_cast_expr hloc e', ast_to_cast_expr hloc e'')
+        IETriOp
+          (op, ast_to_intermediate_ast_expr hloc e, ast_to_intermediate_ast_expr hloc e', ast_to_intermediate_ast_expr hloc e'')
     | EComp  (_, op, e, e') ->
-        IComp (op, ast_to_cast_expr hloc e, ast_to_cast_expr hloc e')
+        IEComp (op, ast_to_intermediate_ast_expr hloc e, ast_to_intermediate_ast_expr hloc e')
     | EWhen  (_, e, e') ->
-        IWhen (ast_to_cast_expr hloc e, ast_to_cast_expr hloc e')
+        IEWhen (ast_to_intermediate_ast_expr hloc e, ast_to_intermediate_ast_expr hloc e')
     | EReset  (_, e, e') ->
-        IReset (ast_to_cast_expr hloc e, ast_to_cast_expr hloc e')
-    | EConst (_, c) -> IConst c
-    | ETuple (_, l) -> ITuple (List.map (ast_to_cast_expr hloc) l)
+        IEReset (ast_to_intermediate_ast_expr hloc e, ast_to_intermediate_ast_expr hloc e')
+    | EConst (_, c) -> IEConst c
+    | ETuple (_, l) -> IETuple (List.map (ast_to_intermediate_ast_expr hloc) l)
     | EApp   (_, n, e) ->
       begin
-        let e = ast_to_cast_expr hloc e in
-        let res = IApp (!c, n, e) in
+        let e = ast_to_intermediate_ast_expr hloc e in
+        let res = IEApp (!c, n, e) in
         let () = incr c in
         res
       end
   in
-  let ast_to_cast_eq hloc (patt, expr) : i_equation =
-    (ast_to_cast_varlist patt, ast_to_cast_expr hloc expr) in
+  let ast_to_intermediate_ast_eq hloc (patt, expr) : i_equation =
+    (ast_to_intermediate_ast_varlist patt, ast_to_intermediate_ast_expr hloc expr) in
   List.map
     begin
     fun node ->
@@ -48,10 +49,10 @@ let ast_to_cast (nodes: t_nodelist) (h: node_states): i_nodelist =
       let hloc = (Hashtbl.find h node.n_name).nt_map in
       {
         in_name = node.n_name;
-        in_inputs = ast_to_cast_varlist node.n_inputs;
-        in_outputs = ast_to_cast_varlist node.n_outputs;
-        in_local_vars = ast_to_cast_varlist node.n_local_vars;
-        in_equations = List.map (ast_to_cast_eq hloc) node.n_equations;
+        in_inputs = ast_to_intermediate_ast_varlist node.n_inputs;
+        in_outputs = ast_to_intermediate_ast_varlist node.n_outputs;
+        in_local_vars = ast_to_intermediate_ast_varlist node.n_local_vars;
+        in_equations = List.map (ast_to_intermediate_ast_eq hloc) node.n_equations;
       }
     end
     nodes
@@ -71,8 +72,11 @@ let make_state_types nodes: node_states =
     let vars =
       List.filter (fun v -> type_var v = [ty])
         (snd (varlist_concat node.n_outputs node.n_local_vars)) in
+    let all_vars =
+      List.filter (fun v -> type_var v = [ty])
+        (snd (varlist_concat (varlist_concat node.n_inputs node.n_outputs) node.n_local_vars)) in
     let pre_vars =
-      List.filter (fun v -> List.mem v pv) vars in
+      List.filter (fun v -> List.mem v pv) all_vars in
     let nb = (List.length vars) + (List.length pre_vars) in
     let tyh = Hashtbl.create nb in
     let i =
@@ -205,10 +209,16 @@ let cp_prevars fmt (node, h) =
         "\n\t/* Remember the values used in the [pre] construct */\n";
       List.iter
         (fun v -> (** Note that «dst_array = src_array» should hold. *)
-          let (src_array, src_idx) = Hashtbl.find node_st.nt_map (v, false) in
-          let (dst_array, dst_idx) = Hashtbl.find node_st.nt_map (v, true) in
-          Format.fprintf fmt "\t%s[%d] = %s[%d];\n"
-            dst_array dst_idx src_array src_idx)
+          match Hashtbl.find_opt node_st.nt_map (v, false) with
+          | Some (src_array, src_idx) ->
+            let (dst_array, dst_idx) = Hashtbl.find node_st.nt_map (v, true) in
+            Format.fprintf fmt "\t%s[%d] = %s[%d];\n"
+              dst_array dst_idx src_array src_idx
+          | None -> 
+            let (dst_array, dst_idx) = Hashtbl.find node_st.nt_map (v, true) in
+            Format.fprintf fmt "\t%s[%d] = %s;\n"
+              dst_array dst_idx (Utils.name_of_var v)
+          )
         l
 
 
@@ -241,20 +251,13 @@ let cp_init_aux_nodes fmt (node, h) =
 
 
 
-(** The following function prints one equation of the program into a set of
-  * instruction ending in assignments. *)
-let cp_equation fmt (eq, hloc) =
-  Format.fprintf fmt "\t\t/* TODO! */\n"
-
-
-
 (** [cp_equations] prints the node equations. *)
 let rec cp_equations fmt (eqs, hloc) =
   match eqs with
   | [] -> ()
   | eq :: eqs ->
     Format.fprintf fmt "%a%a"
-      cp_equation (eq, hloc)
+      cp_expression (equation_to_expression (hloc.nt_map, eq), hloc)
       cp_equations (eqs, hloc)
 
 (** [cp_node] prints a single node *)
@@ -276,10 +279,40 @@ let rec cp_nodes fmt (nodes, h) =
 
 
 
+let dump_var_locations (st: node_states) =
+  Hashtbl.iter
+    (fun n st ->
+      Format.printf "\n\n\tNODE: %s\n" n;
+    Hashtbl.iter
+    (fun ((v: t_var), (ispre: bool)) ((arr: string), (idx: int)) ->
+      match v, ispre with
+      | IVar s, true -> Format.printf "PRE Variable (int) %s stored as %s[%d]\n"
+                          s arr idx
+      | BVar s, true -> Format.printf "PRE Variable (bool) %s stored as %s[%d]\n"
+                          s arr idx
+      | RVar s, true -> Format.printf "PRE Variable (real) %s stored as %s[%d]\n"
+                          s arr idx
+      | IVar s, false -> Format.printf "Variable (int) %s stored as %s[%d]\n"
+                          s arr idx
+      | BVar s, false -> Format.printf "Variable (bool) %s stored as %s[%d]\n"
+                          s arr idx
+      | RVar s, false -> Format.printf "Variable (real) %s stored as %s[%d]\n"
+                          s arr idx)
+    st.nt_map)
+    st;
+    Format.printf "\n\n"
+
+
+
 (** main function that prints a C-code from a term of type [t_nodelist]. *)
-let ast_to_c prog =
+let ast_to_c (debug: bool) prog =
   let prog_st_types = make_state_types prog in
-  let prog: i_nodelist = ast_to_cast prog prog_st_types in
+  let () =
+    if debug
+      then dump_var_locations prog_st_types
+      else ()
+    in
+  let prog: i_nodelist = ast_to_intermediate_ast prog prog_st_types in
   Format.printf "%a\n\n%a\n\n/* Node Prototypes: */\n%a\n\n/* Nodes: */\n%a"
     cp_includes (Config.c_includes)
     cp_state_types prog_st_types

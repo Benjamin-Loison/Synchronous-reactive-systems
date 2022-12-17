@@ -25,7 +25,7 @@ let exec_passes ast main_fn verbose debug passes f =
 
 let _ =
   (** Usage and argument parsing. *)
-  let default_passes = ["automata_validity" ;"automata_translation"; "linearization"; "pre2vars"; "equations_ordering"; "clock_unification"] in
+  let default_passes = [] in
   let sanity_passes = ["chkvar_init_unicity"; "check_typing"] in
   let usage_msg =
     "Usage: main [-passes p1,...,pn] [-ast] [-verbose] [-debug] \
@@ -127,6 +127,6 @@ let _ =
     else (
       if !nopopt
         then (fun _ -> ())
-        else Ast_to_c.ast_to_c)
+        else Ast_to_c.ast_to_c !debug)
   end
 

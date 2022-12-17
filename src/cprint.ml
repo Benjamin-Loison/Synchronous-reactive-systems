@@ -1,6 +1,7 @@
 open Intermediate_utils
 open Intermediate_ast
 open Ast
+open Cast
 
 (** This file contains extrimely simple functions printing C code. *)
 
@@ -76,3 +77,37 @@ let rec cp_prototypes fmt ((nodes, h): i_nodelist * node_states) =
         cp_prototype (node, h)
         cp_prototypes (nodes, h)
 
+
+
+let cp_value fmt value =
+  match value with
+  | CVariable (CVInput s) -> Format.fprintf fmt "%s" s
+  | CVariable (CVStored (arr, idx)) ->
+      Format.fprintf fmt "%s[%d]" arr idx
+  | CConst (CInt i) -> Format.fprintf fmt "%d" i
+  | CConst (CBool true) -> Format.fprintf fmt "true"
+  | CConst (CBool false) -> Format.fprintf fmt "false"
+  | CConst (CReal r) -> Format.fprintf fmt "%f" r
+  (**| CMonOp of monop * c_value
+  | CBinOp of binop * c_value * c_value
+  | CComp of compop * c_value * c_value*)
+  | _ -> failwith "[cprint.ml] TODO!"
+
+
+
+
+(** The following function prints one transformed equation of the program into a
+  * set of instruction ending in assignments. *)
+let cp_expression fmt (expr, hloc) =
+  let prefix = "\t" in
+  match expr with
+  | CAssign (CVStored (arr, idx), value) ->
+    begin
+      Format.fprintf fmt "%s%s[%d] = %a;\n"
+        prefix arr idx cp_value value
+    end
+  | CAssign (CVInput _, _) -> failwith "should not happend."
+  (*| CSeq of c_expression * c_expression
+  | CIf of c_value * c_block * c_block
+  | CApplication of c_var list * c_expression*)
+  | _ -> failwith "[cprint.ml] TODO!"

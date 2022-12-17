@@ -45,17 +45,17 @@ type c_var =
   | CVInput of ident
 
 type i_expression =
-  | IVar   of c_var
-  | IMonOp of monop * i_expression
-  | IBinOp of binop * i_expression * i_expression
-  | ITriOp of triop * i_expression * i_expression * i_expression
-  | IComp  of compop * i_expression * i_expression
-  | IWhen  of i_expression * i_expression
-  | IReset of i_expression * i_expression
-  | IConst of const
-  | ITuple of (i_expression list)
+  | IEVar   of c_var
+  | IEMonOp of monop * i_expression
+  | IEBinOp of binop * i_expression * i_expression
+  | IETriOp of triop * i_expression * i_expression * i_expression
+  | IEComp  of compop * i_expression * i_expression
+  | IEWhen  of i_expression * i_expression
+  | IEReset of i_expression * i_expression
+  | IEConst of const
+  | IETuple of (i_expression list)
       (** [CApp] below represents the n-th call to an aux node *)
-  | IApp   of int * t_node * i_expression
+  | IEApp   of int * t_node * i_expression
 
 and i_varlist = t_var list
 
