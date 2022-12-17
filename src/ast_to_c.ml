@@ -71,6 +71,17 @@ let make_state_types nodes: (ident, node_state) Hashtbl.t =
         let nb_int_vars,  h_int  = one_node node pv TInt in
         let nb_bool_vars, h_bool = one_node node pv TBool in
         let nb_real_vars, h_real = one_node node pv TReal in
+
+        (** h_map gathers information from h_* maps above *)
+        let h_map =
+          Hashtbl.create (nb_int_vars + nb_bool_vars + nb_real_vars) in
+        let () =
+          Hashtbl.iter (fun k v -> Hashtbl.add h_map k ("ivars", v)) h_int in
+        let () =
+          Hashtbl.iter (fun k v -> Hashtbl.add h_map k ("bvars", v)) h_bool in
+        let () =
+          Hashtbl.iter (fun k v -> Hashtbl.add h_map k ("rvars", v)) h_real in
+
         let node_out_vars = snd node.n_outputs in
         let h_out = Hashtbl.create (List.length node_out_vars) in
         let () = List.iteri
@@ -95,7 +106,9 @@ let make_state_types nodes: (ident, node_state) Hashtbl.t =
             nt_map_int = h_int;
             nt_map_bool = h_bool;
             nt_map_real = h_real;
+            nt_map = h_map;
             nt_output_map = h_out;
+            nt_prevars = pv;
           } in
         h
         end
@@ -110,8 +123,9 @@ let make_state_types nodes: (ident, node_state) Hashtbl.t =
 
 let ast_to_c prog =
   let prog_st_types = make_state_types prog in
-  Format.printf "%s\n\n%a\n\n/* Node Prototypes: */\n%a"
+  Format.printf "%s\n\n%a\n\n/* Node Prototypes: */\n%a\n\n/* Nodes: */\n%a"
     Config.c_includes
     cp_state_types prog_st_types
     cp_prototypes (prog, prog_st_types)
+    cp_nodes (prog, prog_st_types)
 

@@ -7,7 +7,9 @@ open Ast
   *     [(variable, is_pre)] to an index of the corresponding array (see below)
   *     where [variable] is of type [t_var], and [is_pre] indicated whether we
   *     deal with pre (x) or x.
-  *   6. A mapping mapping the output number i to its location (name of the
+  *   6. A mapping mapping any variable to the name of the C table containing it
+  *      and the index at which it is stored (= union of the tables [nt_map_*])
+  *   7. A mapping mapping the output number i to its location (name of the
   *     table that contains it and index.
   *
   * Important Note: if a variable x appears behind a pre, it will count as two
@@ -29,6 +31,8 @@ type node_state =
     nt_map_int: (t_var * bool, int) Hashtbl.t;
     nt_map_bool: (t_var * bool, int) Hashtbl.t;
     nt_map_real: (t_var * bool, int) Hashtbl.t;
+    nt_map: (t_var * bool, string * int) Hashtbl.t;
     nt_output_map: (int, string * int) Hashtbl.t;
+    nt_prevars: t_var list
   }
 
