@@ -40,10 +40,27 @@ let cp_state_types fmt (h: (ident, node_state) Hashtbl.t): unit =
     Format.fprintf fmt "/* Struct holding states of the node %s: */\n%a" n
       cp_node_state nst) h
 
+let cp_var' fmt = function
+  | CVStored (arr, idx) -> Format.fprintf fmt "state->%s[%d]" arr idx
+  | CVInput s -> Format.fprintf fmt "s"
+
 let cp_var fmt = function
   | IVar s -> Format.fprintf fmt "int %s" s
   | BVar s -> Format.fprintf fmt "bool %s" s
   | RVar s -> Format.fprintf fmt "double %s" s
+
+let rec cp_varlist' fmt vl =
+  let maybeprint fmt = function
+    | [] -> ()
+    | _ :: _ -> Format.fprintf fmt ", "
+  in
+  match vl with
+  | [] -> ()
+  | v :: vl ->
+    Format.fprintf fmt "%a%a%a"
+    cp_var' v
+    maybeprint vl
+    cp_varlist' vl
 
 let rec cp_varlist fmt vl =
   let maybeprint fmt = function
@@ -130,11 +147,14 @@ let rec cp_value fmt (value, (hloc: (ident * bool, string * int) Hashtbl.t)) =
   | CMonOp (MOp_pre, _) ->
       failwith "[cprint.ml] The linearization should have removed this case."
 
-
 (** The following function prints one transformed equation of the program into a
   * set of instruction ending in assignments. *)
 let rec cp_expression fmt (expr, hloc) =
   let prefix = "\t" in
+  let rec cp_block fmt = function
+    | [] -> ()
+    | e :: b -> Format.fprintf fmt "%a%a" cp_expression (e, hloc) cp_block b
+  in
   match expr with
   | CAssign (CVStored (arr, idx), value) ->
     begin
@@ -146,7 +166,14 @@ let rec cp_expression fmt (expr, hloc) =
       Format.fprintf fmt "%a%a"
         cp_expression (e, hloc)
         cp_expression (e', hloc)
-  (**| CIf of c_value * c_block * c_block
-  | CApplication of c_var list * c_expression*)
-  | _ -> failwith "[cprint.ml] TODO!"
+  | CApplication (fn, l) ->
+      (Format.fprintf fmt "%s(%a);"
+        fn
+        cp_varlist' l;
+        failwith "TODO: use nt_output_map to fetch the output!")
+  | CIf (v, b1, b2) ->
+      Format.fprintf fmt "if (%a) {\n%a\t\t} else {\n%a\t\t}\n"
+        cp_value (v, hloc)
+        cp_block b1
+        cp_block b2
 

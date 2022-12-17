@@ -13,7 +13,7 @@ and c_expression =
   | CAssign of c_var * c_value
   | CSeq of c_expression * c_expression
   | CIf of c_value * c_block * c_block
-  | CApplication of c_var list * c_expression
+  | CApplication of ident * c_var list
 
 (** A value here is anything that can be inlined into a single C expression
   * containing no function call, condition, ... *)
