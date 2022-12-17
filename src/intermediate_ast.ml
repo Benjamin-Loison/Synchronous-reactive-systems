@@ -44,35 +44,35 @@ type c_var =
   | CVStored of string * int
   | CVInput of ident
 
-type c_expression =
-  | CVar   of c_var
-  | CMonOp of monop * c_expression
-  | CBinOp of binop * c_expression * c_expression
-  | CTriOp of triop * c_expression * c_expression * c_expression
-  | CComp  of compop * c_expression * c_expression
-  | CWhen  of c_expression * c_expression
-  | CReset of c_expression * c_expression
-  | CConst of const
-  | CTuple of (c_expression list)
+type i_expression =
+  | IVar   of c_var
+  | IMonOp of monop * i_expression
+  | IBinOp of binop * i_expression * i_expression
+  | ITriOp of triop * i_expression * i_expression * i_expression
+  | IComp  of compop * i_expression * i_expression
+  | IWhen  of i_expression * i_expression
+  | IReset of i_expression * i_expression
+  | IConst of const
+  | ITuple of (i_expression list)
       (** [CApp] below represents the n-th call to an aux node *)
-  | CApp   of int * t_node * c_expression
+  | IApp   of int * t_node * i_expression
 
-and c_varlist = t_var list
+and i_varlist = t_var list
 
-and c_equation = c_varlist * c_expression 
+and i_equation = i_varlist * i_expression
 
-and c_eqlist = c_equation list
+and i_eqlist = i_equation list
 
-and c_node =
+and i_node =
   {
-    cn_name : ident;
-    cn_inputs: c_varlist;
-    cn_outputs: c_varlist;
-    cn_local_vars: c_varlist;
-    cn_equations: c_eqlist;
+    in_name : ident;
+    in_inputs: i_varlist;
+    in_outputs: i_varlist;
+    in_local_vars: i_varlist;
+    in_equations: i_eqlist;
   }
 
-type c_nodelist = c_node list
+type i_nodelist = i_node list
 
 type node_states = (ident, node_state) Hashtbl.t
 

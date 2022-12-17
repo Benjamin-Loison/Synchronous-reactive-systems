@@ -6,40 +6,40 @@ open Utils
 
 
 
-(** [ast_to_cast] translates a [t_nodelist] into a [c_nodelist] *)
-let ast_to_cast (nodes: t_nodelist) (h: node_states): c_nodelist =
+(** [ast_to_cast] translates a [t_nodelist] into a [i_nodelist] *)
+let ast_to_cast (nodes: t_nodelist) (h: node_states): i_nodelist =
   let c = ref 1 in
   let ast_to_cast_varlist vl = snd vl in
   let rec ast_to_cast_expr hloc = function
     | EVar   (_, v) ->
         begin
         match Hashtbl.find_opt hloc (v, false) with
-        | None -> CVar (CVInput (name_of_var v))
-        | Some (s, i) -> CVar (CVStored (s, i))
+        | None -> IVar (CVInput (name_of_var v))
+        | Some (s, i) -> IVar (CVStored (s, i))
         end
-    | EMonOp (_, op, e) -> CMonOp (op, ast_to_cast_expr hloc e)
+    | EMonOp (_, op, e) -> IMonOp (op, ast_to_cast_expr hloc e)
     | EBinOp (_, op, e, e') ->
-       CBinOp (op, ast_to_cast_expr hloc e, ast_to_cast_expr hloc e')
+       IBinOp (op, ast_to_cast_expr hloc e, ast_to_cast_expr hloc e')
     | ETriOp (_, op, e, e', e'') ->
-        CTriOp
+        ITriOp
           (op, ast_to_cast_expr hloc e, ast_to_cast_expr hloc e', ast_to_cast_expr hloc e'')
     | EComp  (_, op, e, e') ->
-        CComp (op, ast_to_cast_expr hloc e, ast_to_cast_expr hloc e')
+        IComp (op, ast_to_cast_expr hloc e, ast_to_cast_expr hloc e')
     | EWhen  (_, e, e') ->
-        CWhen (ast_to_cast_expr hloc e, ast_to_cast_expr hloc e')
+        IWhen (ast_to_cast_expr hloc e, ast_to_cast_expr hloc e')
     | EReset  (_, e, e') ->
-        CReset (ast_to_cast_expr hloc e, ast_to_cast_expr hloc e')
-    | EConst (_, c) -> CConst c
-    | ETuple (_, l) -> CTuple (List.map (ast_to_cast_expr hloc) l)
+        IReset (ast_to_cast_expr hloc e, ast_to_cast_expr hloc e')
+    | EConst (_, c) -> IConst c
+    | ETuple (_, l) -> ITuple (List.map (ast_to_cast_expr hloc) l)
     | EApp   (_, n, e) ->
       begin
         let e = ast_to_cast_expr hloc e in
-        let res = CApp (!c, n, e) in
+        let res = IApp (!c, n, e) in
         let () = incr c in
         res
       end
   in
-  let ast_to_cast_eq hloc (patt, expr) : c_equation =
+  let ast_to_cast_eq hloc (patt, expr) : i_equation =
     (ast_to_cast_varlist patt, ast_to_cast_expr hloc expr) in
   List.map
     begin
@@ -47,11 +47,11 @@ let ast_to_cast (nodes: t_nodelist) (h: node_states): c_nodelist =
       let () = c := 1 in
       let hloc = (Hashtbl.find h node.n_name).nt_map in
       {
-        cn_name = node.n_name;
-        cn_inputs = ast_to_cast_varlist node.n_inputs;
-        cn_outputs = ast_to_cast_varlist node.n_outputs;
-        cn_local_vars = ast_to_cast_varlist node.n_local_vars;
-        cn_equations = List.map (ast_to_cast_eq hloc) node.n_equations;
+        in_name = node.n_name;
+        in_inputs = ast_to_cast_varlist node.n_inputs;
+        in_outputs = ast_to_cast_varlist node.n_outputs;
+        in_local_vars = ast_to_cast_varlist node.n_local_vars;
+        in_equations = List.map (ast_to_cast_eq hloc) node.n_equations;
       }
     end
     nodes
@@ -156,7 +156,7 @@ let make_state_types nodes: node_states =
         let node_out_vars = snd node.n_outputs in
         let h_out = Hashtbl.create (List.length node_out_vars) in
         let () = List.iteri
-          (fun n v ->
+          (fun n (v: t_var) ->
             match v with
             | IVar _ ->
                 let i = Hashtbl.find h_int (v, false) in
@@ -197,8 +197,8 @@ let make_state_types nodes: node_states =
 (** The following function prints the code to remember previous values of
   * variables used with the pre construct. *)
 let cp_prevars fmt (node, h) =
-  let node_st = Hashtbl.find h node.cn_name in
-  match (Hashtbl.find h node.cn_name).nt_prevars with
+  let node_st = Hashtbl.find h node.in_name in
+  match (Hashtbl.find h node.in_name).nt_prevars with
   | [] -> ()
   | l ->
       Format.fprintf fmt
@@ -219,7 +219,7 @@ let cp_prevars fmt (node, h) =
   *)
 let cp_init_aux_nodes fmt (node, h) =
   let rec aux fmt (node, nst, i) =
-    match find_app_opt node.cn_equations i with
+    match find_app_opt node.in_equations i with
     | None -> () (** All auxiliary nodes have been initialized *)
     | Some n ->
       begin
@@ -230,7 +230,7 @@ let cp_init_aux_nodes fmt (node, h) =
         (Format.asprintf "t_state_%s" n.n_name) (i-1)
       end
   in
-  let nst = Hashtbl.find h node.cn_name in
+  let nst = Hashtbl.find h node.in_name in
   if nst.nt_count_app = 0
     then ()
     else begin
@@ -262,7 +262,7 @@ let cp_node fmt (node, h) =
   Format.fprintf fmt "%a\n{\n%a%a\n\n\tstate->is_init = false;\n%a}\n"
     cp_prototype (node, h)
     cp_init_aux_nodes (node, h)
-    cp_equations (node.cn_equations, Hashtbl.find h node.cn_name)
+    cp_equations (node.in_equations, Hashtbl.find h node.in_name)
     cp_prevars (node, h)
 
 (** [cp_nodes] recursively prints all the nodes of a program. *)
@@ -279,7 +279,7 @@ let rec cp_nodes fmt (nodes, h) =
 (** main function that prints a C-code from a term of type [t_nodelist]. *)
 let ast_to_c prog =
   let prog_st_types = make_state_types prog in
-  let prog: c_nodelist = ast_to_cast prog prog_st_types in
+  let prog: i_nodelist = ast_to_cast prog prog_st_types in
   Format.printf "%a\n\n%a\n\n/* Node Prototypes: */\n%a\n\n/* Nodes: */\n%a"
     cp_includes (Config.c_includes)
     cp_state_types prog_st_types

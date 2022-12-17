@@ -7,7 +7,7 @@ open Ast
 let rec cp_includes fmt = function
   | [] -> ()
   | h :: t ->
-      Format.fprintf fmt "#include <%s>\n%a" h cp_includes t
+      Format.fprintf fmt "#include <%s.h>\n%a" h cp_includes t
 
 let cp_node_state fmt (st: node_state) =
   let maybeprint fmt (ty, nb, name): unit =
@@ -58,17 +58,17 @@ let rec cp_varlist fmt vl =
     cp_varlist vl
 
 let cp_prototype fmt (node, h): unit =
-  match Hashtbl.find_opt h node.cn_name with
+  match Hashtbl.find_opt h node.in_name with
   | None -> failwith "This should not happend!"
   | Some nst ->
       begin
         Format.fprintf fmt "void fn_%s (%s *state, %a)"
-          node.cn_name
+          node.in_name
           nst.nt_name
-          cp_varlist node.cn_inputs
+          cp_varlist node.in_inputs
       end
 
-let rec cp_prototypes fmt ((nodes, h): c_nodelist * node_states) =
+let rec cp_prototypes fmt ((nodes, h): i_nodelist * node_states) =
   match nodes with
   | [] -> ()
   | node :: nodes ->

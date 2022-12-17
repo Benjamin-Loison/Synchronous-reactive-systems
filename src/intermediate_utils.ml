@@ -2,15 +2,15 @@ open Intermediate_ast
 
 let rec find_app_opt eqs i =
   let rec find_app_expr_opt i = function
-    | CVar _ | CConst _ -> None
-    | CMonOp (_, e) -> find_app_expr_opt i e
-    | CReset (e, e') | CWhen (e, e') | CComp (_, e, e') | CBinOp (_, e, e') ->
+    | IVar _ | IConst _ -> None
+    | IMonOp (_, e) -> find_app_expr_opt i e
+    | IReset (e, e') | IWhen (e, e') | IComp (_, e, e') | IBinOp (_, e, e') ->
         begin
         match find_app_expr_opt i e with
         | None -> find_app_expr_opt i e'
         | Some n -> Some n
         end
-    | CTriOp (_, e, e', e'') ->
+    | ITriOp (_, e, e', e'') ->
         begin
         match find_app_expr_opt i e with
         | None ->
@@ -21,15 +21,15 @@ let rec find_app_opt eqs i =
           end
         | Some n -> Some n
         end
-    | CTuple l ->
+    | ITuple l ->
         List.fold_left
           (fun acc e ->
             match acc, find_app_expr_opt i e with
             | Some n, _ -> Some n
             | None, v -> v)
           None l
-        (** [CApp] below represents the n-th call to an aux node *)
-    | CApp (j, n, e) ->
+        (** [IApp] below represents the n-th call to an aux node *)
+    | IApp (j, n, e) ->
         if i = j
           then Some n
           else find_app_expr_opt i e
