@@ -133,7 +133,7 @@ let _ =
           else (
             if !nopopt
               then (fun _ -> ())
-              else Format.printf "%a" Ast_to_c.ast_to_c)
+              else Ast_to_c.ast_to_c)
         end
     end
 

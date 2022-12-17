@@ -9,6 +9,13 @@ let rec list_select n = function
           let p1, p2 = list_select (n-1) t in
           h :: p1, p2
 
+let rec list_remove_duplicates l =
+  match l with
+  | [] -> []
+  | h :: t ->
+      let t = list_remove_duplicates t in
+      if List.mem h t then t else h :: t
+
 let rec list_map_option (f: 'a -> 'b option) (l: 'a list) : 'b list option =
   List.fold_right (fun elt acc ->
     match acc, f elt with

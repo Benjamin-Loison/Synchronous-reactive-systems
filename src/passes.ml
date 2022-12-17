@@ -601,8 +601,8 @@ let clock_unification_pass verbose debug main_fn ast =
       | _ -> failure ("Merge format")
     end
   | ETriOp(_, TOp_if, e1, e2, e3) ->
-      let c1 = compute_clock_exp e1
-      and c2 = compute_clock_exp e2
+      let (* Unused: c1 = compute_clock_exp e1
+      and*) c2 = compute_clock_exp e2
       and c3 = compute_clock_exp e3 in
       if c2 <> c3 then
         failure "If clocks"
