@@ -9,12 +9,12 @@ let print_debug d s =
 let print_verbose v s =
   if v then Format.printf "\x1b[33;01;04mStatus:\x1b[0m %s\n" s else ()
 
-let exec_passes ast main_fn verbose debug passes f =
+let exec_passes ast verbose debug passes f =
   let rec aux ast = function
     | [] ->  f ast
     | (n, p) :: passes ->
         verbose (Format.asprintf "Executing pass %s:\n" n);
-        match p verbose debug main_fn ast with
+        match p verbose debug ast with
         | None -> (exit_error ("Error while in the pass "^n^".\n"); exit 0)
         | Some ast -> (
         debug (Format.asprintf "Current AST (after %s):\n%a\n" n Lustre_pp.pp_ast ast);
@@ -25,7 +25,7 @@ let exec_passes ast main_fn verbose debug passes f =
 
 let _ =
   (** Usage and argument parsing. *)
-  let default_passes = [] in
+  let default_passes = ["linearization_tuples"; "linearization"] in
   let sanity_passes = ["chkvar_init_unicity"; "check_typing"] in
   let usage_msg =
     "Usage: main [-passes p1,...,pn] [-ast] [-verbose] [-debug] \
@@ -57,13 +57,12 @@ let _ =
   if !passes = [] then passes := default_passes;
   let print_verbose = print_verbose !verbose in
   let print_debug = print_debug !debug in
-  let main_fn = "main" in
 
   (** Definition of the passes table *)
   let passes_table  = Hashtbl.create 100 in
   List.iter (fun (s, k) -> Hashtbl.add passes_table s k)
     [
-      ("pre2vars", Passes.pre2vars);
+      ("linearization_tuples", Passes.pass_linearization_tuples);
       ("chkvar_init_unicity", Passes.chkvar_init_unicity);
       ("automata_translation", Passes.automata_translation_pass);
       ("automata_validity", Passes.check_automata_validity);
@@ -120,7 +119,7 @@ let _ =
 
   print_debug (Format.asprintf "Initial AST (before executing any passes):\n%a"
                 Lustre_pp.pp_ast ast) ;
-  exec_passes ast main_fn print_verbose print_debug passes
+  exec_passes ast print_verbose print_debug passes
   begin
   if !ppast
     then (Format.printf "%a" Lustre_pp.pp_ast)

@@ -1,6 +1,10 @@
-node n (i: int) returns (o: int);
-var v: int;
+node my_and (a, b: bool) returns (o: bool);
 let
-  o = 1;
-  v = pre o;
+  o = a and b;
+tel
+
+node n (i: int) returns (o: int);
+var v: bool;
+let
+  (o, v) = (1, my_and (pre o = 8, pre v));
 tel

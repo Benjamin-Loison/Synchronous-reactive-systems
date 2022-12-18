@@ -4,88 +4,29 @@ open Ast
 open Passes_utils
 open Utils
 
-let pre2vars verbose debug main_fn =
-  let rec all_pre expr =
-    match expr with
-    | EMonOp (ty, MOp_pre, expr) -> all_pre expr
-    | EMonOp _ -> false
-    | EVar _ -> true
-    | _ -> false
-  in
-  let rec pre_push expr : t_expression =
-    match expr with
-    | EVar _ -> EMonOp (type_exp expr, MOp_pre, expr)
-    | EConst _ -> expr (** pre(c) = c for any constant c *)
-    | EMonOp (ty, mop, expr) ->
-      begin
-        match mop with
-      | MOp_pre ->
-        if all_pre expr
-          then EMonOp (ty, mop, EMonOp (ty, mop, expr))
-          else pre_push (pre_push expr)
-      | _ -> EMonOp (ty, mop, pre_push expr)
-      end
-    | EBinOp (ty, bop, expr, expr') ->
-        let expr = pre_push expr in let expr' = pre_push expr' in
-        EBinOp (ty, bop, expr, expr')
-    | ETriOp (ty, top, expr, expr', expr'') ->
-        let expr = pre_push expr in let expr' = pre_push expr' in
-        let expr'' = pre_push expr'' in
-        ETriOp (ty, top, expr, expr', expr'')
-    | EComp  (ty, cop, expr, expr') ->
-        let expr = pre_push expr in let expr' = pre_push expr' in
-        EComp (ty, cop, expr, expr')
-    | EWhen  (ty, expr, expr') ->
-        let expr = pre_push expr in let expr' = pre_push expr' in
-        EWhen (ty, expr, expr')
-    | EReset (ty, expr, expr') ->
-        let expr = pre_push expr in let expr' = pre_push expr' in
-        EReset (ty, expr, expr')
-    | ETuple (ty, elist) ->
-        let elist =
-          List.fold_right (fun expr acc -> (pre_push expr) :: acc) elist [] in
-        ETuple (ty, elist)
-    | EApp   (ty, node, arg) ->
-        let arg = pre_push arg in
-        EApp (ty, node, arg)
-  in
-  let rec aux (expr: t_expression) =
-    match expr with
-    | EVar   _ -> expr
-    | EMonOp (ty, mop, expr) ->
-      begin
-        match mop with
-        | MOp_pre -> pre_push expr
-        | _ -> let expr = aux expr in EMonOp (ty, mop, expr)
-      end
-    | EBinOp (ty, bop, expr, expr') ->
-        let expr = aux expr in let expr' = aux expr' in
-        EBinOp (ty, bop, expr, expr')
-    | ETriOp (ty, top, expr, expr', expr'') ->
-        let expr = aux expr in let expr' = aux expr' in
-        let expr'' = aux expr'' in
-        ETriOp (ty, top, expr, expr', expr'')
-    | EComp  (ty, cop, expr, expr') ->
-        let expr = aux expr in let expr' = aux expr' in
-        EComp (ty, cop, expr, expr')
-    | EWhen  (ty, expr, expr') ->
-        let expr = aux expr in let expr' = aux expr' in
-        EWhen (ty, expr, expr')
-    | EReset (ty, expr, expr') ->
-        let expr = aux expr in let expr' = aux expr' in
-        EReset (ty, expr, expr')
-    | EConst (ty, c) -> EConst (ty, c)
-    | ETuple (ty, elist) ->
-        let elist =
-          List.fold_right (fun expr acc -> (aux expr) :: acc) elist [] in
-        ETuple (ty, elist)
-    | EApp   (ty, node, arg) ->
-        let arg = aux arg in
-        EApp (ty, node, arg)
-  in
-  expression_pass (somify aux)
+let rec split_tuple (eq: t_equation): t_eqlist =
+  let patt, expr = eq in
+  match expr with
+  | ETuple (_, expr_h :: expr_t) ->
+    begin
+      let t_l = type_exp expr_h in
+      let patt_l, patt_r = list_select (List.length t_l) (snd patt) in
+      let t_r = List.flatten (List.map type_var patt_r) in
+      ((t_l, patt_l), expr_h) ::
+        split_tuple ((t_r, patt_r), ETuple (t_r, expr_t))
+    end
+  | ETuple (_, []) -> []
+  | _ -> [eq]
 
-let chkvar_init_unicity verbose debug main_fn : t_nodelist -> t_nodelist option =
+
+let pass_linearization_tuples verbose debug =
+  let aux_linearization_tuples node =
+    let new_equations = List.flatten (List.map split_tuple node.n_equations) in
+    Some { node with n_equations = new_equations }
+  in
+  node_pass aux_linearization_tuples
+
+let chkvar_init_unicity verbose debug : t_nodelist -> t_nodelist option =
   let aux (node: t_node) : t_node option =
     let incr_aux h n =
       match Hashtbl.find_opt h n with
@@ -171,7 +112,7 @@ let rec tpl debug ((pat, exp): t_equation) =
   | ETuple (_, []) -> []
   | _ -> [(pat, exp)]
 
-let pass_linearization verbose debug main_fn =
+let pass_linearization verbose debug =
   let node_lin (node: t_node): t_node option =
     let rec pre_aux_expression vars expr: t_eqlist * t_varlist * t_expression =
       match expr with
@@ -237,34 +178,13 @@ let pass_linearization verbose debug main_fn =
       let eqs, vars, expr = pre_aux_expression vars expr in
       (patt, expr)::eqs, vars
       in
-    let rec tpl ((pat, exp): t_equation) =
-      match exp with
-      | ETuple (_, hexps :: texps) ->
-          debug "An ETuple has been recognized, inlining...";
-          let p1, p2 =
-            list_select
-              (List.length (type_exp hexps))
-              (snd pat) in
-          let t1 = List.flatten (List.map type_var p1) in
-          let t2 = List.flatten (List.map type_var p2) in
-          ((t1, p1), hexps)
-            :: (tpl ((t2, p2),
-                ETuple (List.flatten (List.map type_exp texps), texps)))
-      | ETuple (_, []) -> []
-      | _ -> [(pat, exp)]
-    in
-    let new_equations = List.flatten
-      (List.map
-        tpl
-        node.n_equations)
-      in
     let new_equations, new_locvars =
       List.fold_left
         (fun (eqs, vars) eq ->
           let es, vs = pre_aux_equation vars eq in
           es @ eqs, vs)
         ([], node.n_local_vars)
-        new_equations
+        node.n_equations
       in
     Some
       {
@@ -278,7 +198,7 @@ let pass_linearization verbose debug main_fn =
   in
   node_pass node_lin
 
-let pass_eq_reordering verbose debug main_fn ast =
+let pass_eq_reordering verbose debug ast =
   let rec pick_equations init_vars eqs remaining_equations =
     match remaining_equations with
     | [] -> Some eqs
@@ -312,7 +232,7 @@ let pass_eq_reordering verbose debug main_fn ast =
   in
   node_pass node_eq_reorganising ast
 
-let pass_typing verbose debug main_fn ast =
+let pass_typing verbose debug ast =
   let htbl = Hashtbl.create (List.length ast) in
   let () = debug "[typing verification]" in
   let () = List.iter
@@ -382,7 +302,7 @@ let pass_typing verbose debug main_fn ast =
           else None
   in aux ast
 
-let check_automata_validity verbos debug main_fn = 
+let check_automata_validity verbos debug = 
   let check_automaton_branch_vars automaton = 
     let (init, states) = automaton in
     let left_side = Hashtbl.create 10 in
@@ -539,10 +459,10 @@ let automata_trans_pass debug (node:t_node) : t_node option=
       n_automata = []; (* not needed anymore *)
     }
 
-let automata_translation_pass verbose debug main_fn = 
+let automata_translation_pass verbose debug = 
   node_pass (automata_trans_pass debug)
 
-let clock_unification_pass verbose debug main_fn ast = 
+let clock_unification_pass verbose debug ast = 
 
   let failure str = raise (PassExn ("Failed to unify clocks: "^str)) in
     
