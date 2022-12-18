@@ -1,9 +1,6 @@
 node n (i: int) returns (o: int);
-var v, t: int; a, b: bool;
+var v: int;
 let
-  a = true -> false;
-  b = a and not (pre a);
   o = 1;
   v = pre o;
-  t = o + pre i;
 tel

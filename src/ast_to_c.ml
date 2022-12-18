@@ -14,11 +14,14 @@ let ast_to_intermediate_ast (nodes: t_nodelist) (h: node_states): i_nodelist =
   let ast_to_intermediate_ast_varlist vl = snd vl in
   let rec ast_to_intermediate_ast_expr hloc = function
     | EVar   (_, v) ->
-        begin
+      begin
         match Hashtbl.find_opt hloc (Utils.name_of_var v, false) with
         | None -> IEVar (CVInput (name_of_var v))
         | Some (s, i) -> IEVar (CVStored (s, i))
-        end
+      end
+    | EMonOp (_, MOp_pre, EVar (_, v)) ->
+        let s, i = Hashtbl.find hloc (Utils.name_of_var v, true) in
+        IEVar (CVStored (s, i))
     | EMonOp (_, op, e) -> IEMonOp (op, ast_to_intermediate_ast_expr hloc e)
     | EBinOp (_, op, e, e') ->
        IEBinOp (op, ast_to_intermediate_ast_expr hloc e, ast_to_intermediate_ast_expr hloc e')
