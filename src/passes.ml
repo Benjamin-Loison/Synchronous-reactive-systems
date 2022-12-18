@@ -18,13 +18,106 @@ let rec split_tuple (eq: t_equation): t_eqlist =
   | ETuple (_, []) -> []
   | _ -> [eq]
 
-
 let pass_linearization_tuples verbose debug =
   let aux_linearization_tuples node =
-    let new_equations = List.flatten (List.map split_tuple node.n_equations) in
+    let new_equations = List.flatten
+     (List.map
+        (fun eq ->
+          match snd eq with
+          | ETuple _ -> split_tuple eq
+          | EWhen (t, ETuple (_, l), e') ->
+              List.map
+                (fun (patt, expr) -> (patt, EWhen (type_exp expr, expr, e')))
+                (split_tuple (fst eq, ETuple (t, l)))
+          | _ -> [eq])
+        node.n_equations) in
     Some { node with n_equations = new_equations }
   in
   node_pass aux_linearization_tuples
+
+let pass_linearization_app verbose debug =
+  let applin_count = ref 0 in
+  let rec aux_expr vars expr: t_eqlist * t_varlist * t_expression =
+    match expr with
+    | EConst _ | EVar   _ -> [], vars, expr
+    | EMonOp (t, op, expr) ->
+        let eqs, vars, expr = aux_expr vars expr in
+        eqs, vars, EMonOp (t, op, expr)
+    | EBinOp (t, op, e, e') ->
+        let eqs, vars, e = aux_expr vars e in
+        let eqs', vars, e' = aux_expr vars e' in
+        eqs @ eqs', vars, EBinOp (t, op, e, e')
+    | ETriOp (t, op, e, e', e'') ->
+        let eqs, vars, e = aux_expr vars e in
+        let eqs', vars, e' = aux_expr vars e' in
+        let eqs'', vars, e'' = aux_expr vars e'' in
+        eqs @ eqs' @ eqs'', vars, ETriOp (t, op, e, e', e'')
+    | EComp  (t, op, e, e') ->
+        let eqs, vars, e = aux_expr vars e in
+        let eqs', vars, e' = aux_expr vars e' in
+        eqs @ eqs', vars, EComp (t, op, e, e')
+    | EWhen  (t, e, e') ->
+        let eqs, vars, e = aux_expr vars e in
+        let eqs', vars, e' = aux_expr vars e' in
+        eqs @ eqs', vars, EWhen (t, e, e')
+    | EReset (t, e, e') ->
+        let eqs, vars, e = aux_expr vars e in
+        let eqs', vars, e' = aux_expr vars e' in
+        eqs @ eqs', vars, EReset (t, e, e')
+    | ETuple (t, l) ->
+        let eqs, vars, l =
+          List.fold_right
+            (fun e (eqs, vars, l) ->
+              let eqs', vars, e = aux_expr vars e in
+              eqs' @ eqs, vars, (e :: l))
+            l ([], vars, []) in
+        eqs, vars, ETuple (t, l)
+    | EApp   (tout, n, ETuple (tin, l)) ->
+        let eqs, vars, l =
+          List.fold_right
+            (fun e (eqs, vars, l) ->
+              let eqs', vars, e = aux_expr vars e in
+              match e with
+              | EVar _ | EMonOp (_, MOp_pre, _) -> (** No need for a new var. *)
+                  eqs' @ eqs, vars, (e :: l)
+              | _ -> (** Need for a new var. *)
+                  let ty = match type_exp e with
+                           | [ty] -> ty
+                           | _ -> failwith "[passes.ml] One should not provide
+                           tuples as arguments to an auxiliary node."
+                           in
+                  let nvar: string = Format.sprintf "_applin%d" !applin_count in
+                  incr applin_count;
+                  let nvar: t_var =
+                    match ty with
+                    | TBool -> BVar nvar
+                    | TInt -> IVar nvar
+                    | TReal -> RVar nvar
+                    in
+                  let neq_patt: t_varlist = ([ty], [nvar]) in
+                  let neq_expr: t_expression = e in
+                  let vars = varlist_concat neq_patt vars in
+                  (neq_patt, neq_expr)::eqs'@eqs, vars, EVar([ty], nvar) :: l)
+            l ([], vars, []) in
+        eqs, vars, EApp (tout, n, ETuple (tin, l))
+    | EApp _ -> failwith "[passes.ml] Should not happened (parser)"
+  in
+  let aux vars eq =
+    let eqs, vars, expr = aux_expr vars (snd eq) in
+    (fst eq, expr) :: eqs, vars
+  in
+  let aux_linearization_app node =
+    let new_equations, new_locvars =
+      List.fold_left
+        (fun (eqs, vars) eq ->
+          let es, vs = aux vars eq in
+          es @ eqs, vs)
+        ([], node.n_local_vars)
+        node.n_equations
+      in
+    Some { node with n_local_vars = new_locvars; n_equations = new_equations }
+  in
+  node_pass aux_linearization_app
 
 let chkvar_init_unicity verbose debug : t_nodelist -> t_nodelist option =
   let aux (node: t_node) : t_node option =
@@ -112,7 +205,7 @@ let rec tpl debug ((pat, exp): t_equation) =
   | ETuple (_, []) -> []
   | _ -> [(pat, exp)]
 
-let pass_linearization verbose debug =
+let pass_linearization_pre verbose debug =
   let node_lin (node: t_node): t_node option =
     let rec pre_aux_expression vars expr: t_eqlist * t_varlist * t_expression =
       match expr with
@@ -140,7 +233,7 @@ let pass_linearization verbose debug =
           let eqs, vars, e = pre_aux_expression vars e in
           let eqs', vars, e' = pre_aux_expression vars e' in
           eqs @ eqs', vars, EBinOp (t, op, e, e')
-      | ETriOp (t, op, e, e', e'') ->
+      | ETriOp (t, op, e, e', e'') -> (** Do we always want a new var here ? *)
           let eqs, vars, e = pre_aux_expression vars e in
           let nvar: string = fresh_var_name vars 6 in
           let nvar: t_var = BVar nvar in

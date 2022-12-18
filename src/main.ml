@@ -25,7 +25,8 @@ let exec_passes ast verbose debug passes f =
 
 let _ =
   (** Usage and argument parsing. *)
-  let default_passes = ["linearization_tuples"; "linearization"] in
+  let default_passes = ["linearization_pre"; "linearization_tuples"; "linearization_app";
+    "equations_ordering"] in
   let sanity_passes = ["chkvar_init_unicity"; "check_typing"] in
   let usage_msg =
     "Usage: main [-passes p1,...,pn] [-ast] [-verbose] [-debug] \
@@ -63,10 +64,11 @@ let _ =
   List.iter (fun (s, k) -> Hashtbl.add passes_table s k)
     [
       ("linearization_tuples", Passes.pass_linearization_tuples);
+      ("linearization_app", Passes.pass_linearization_app);
+      ("linearization_pre", Passes.pass_linearization_pre);
       ("chkvar_init_unicity", Passes.chkvar_init_unicity);
       ("automata_translation", Passes.automata_translation_pass);
       ("automata_validity", Passes.check_automata_validity);
-      ("linearization", Passes.pass_linearization);
       ("equations_ordering", Passes.pass_eq_reordering);
       ("check_typing", Passes.pass_typing);
       ("clock_unification", Passes.clock_unification_pass);
