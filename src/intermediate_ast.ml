@@ -29,9 +29,6 @@ type node_state =
     nt_nb_int : int;
     nt_nb_real: int;
     nt_nb_bool: int;
-    nt_map_int: (ident * bool, int) Hashtbl.t;
-    nt_map_bool: (ident * bool, int) Hashtbl.t;
-    nt_map_real: (ident * bool, int) Hashtbl.t;
     nt_map: (ident * bool, string * int) Hashtbl.t;
     nt_output_map: (int, string * int) Hashtbl.t;
     nt_prevars: t_var list;
