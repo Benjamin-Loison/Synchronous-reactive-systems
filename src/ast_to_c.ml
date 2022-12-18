@@ -312,9 +312,8 @@ let ast_to_c (debug: bool) prog =
       else ()
     in
   let prog: i_nodelist = ast_to_intermediate_ast prog prog_st_types in
-  Format.printf "%a\n\n%a\n\n/* Node Prototypes: */\n%a\n\n/* Nodes: */\n%a"
+  Format.printf "%a\n\n%a\n\n/* Nodes: */\n%a"
     cp_includes (Config.c_includes)
     cp_state_types prog_st_types
-    cp_prototypes (prog, prog_st_types)
     cp_nodes (prog, prog_st_types)
 
