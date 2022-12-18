@@ -3,7 +3,7 @@ open Intermediate_ast
 open Ast
 open Cast
 
-(** This file contains extrimely simple functions printing C code. *)
+(** This file contains extremely simple functions printing C code. *)
 
 let rec cp_includes fmt = function
   | [] -> ()
@@ -77,7 +77,7 @@ let rec cp_varlist fmt vl =
 
 let cp_prototype fmt (node, h): unit =
   match Hashtbl.find_opt h node.in_name with
-  | None -> failwith "This should not happend!"
+  | None -> failwith "This should not happened!"
   | Some nst ->
       begin
         Format.fprintf fmt "void fn_%s (%s *state, %a)"
@@ -164,7 +164,7 @@ and cp_expression fmt (expr, hloc) =
       Format.fprintf fmt "%sstate->%s[%d] = %a;\n"
         prefix arr idx cp_value (value, hloc)
     end
-  | CAssign (CVInput _, _) -> failwith "should not happend."
+  | CAssign (CVInput _, _) -> failwith "should not happened."
   | CSeq (e, e') ->
       Format.fprintf fmt "%a%a"
         cp_expression (e, hloc)

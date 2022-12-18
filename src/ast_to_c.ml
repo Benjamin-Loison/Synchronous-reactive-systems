@@ -258,7 +258,7 @@ let cp_init_aux_nodes fmt (node, h) =
 let cp_equations fmt (eqs, hloc, h) =
   (** [main_block] is modified through some optimization passes, eg:
     * - merge two CIf blocks using the same condition
-    * - replace [if (! c) { b1 } else {b2 }] by [if(c) { b2 } else { b1 }]
+    * - replace [if (! c) { b1 } else { b2 }] by [if(c) { b2 } else { b1 }]
     *
     *  These passes are defined in [ctranslation.ml]
       *)

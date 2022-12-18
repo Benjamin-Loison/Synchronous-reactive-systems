@@ -70,7 +70,7 @@ let pp_expression =
         begin match c with
         | CBool b -> Format.fprintf fmt "\t\t\t%s<%s : bool>\n" prefix (Bool.to_string b)
         | CInt i ->  Format.fprintf fmt "\t\t\t%s<%5d: int>\n" prefix i
-        | CReal r -> Format.fprintf fmt "\t\t\t%s<%5f: float>\n" prefix r
+        | CReal r -> Format.fprintf fmt "\t\t\t%s<%5f: real>\n" prefix r
         end
     | EVar (_, IVar v) -> Format.fprintf fmt "\t\t\t%s<int var %s>\n" prefix v
     | EVar (_, BVar v) -> Format.fprintf fmt "\t\t\t%s<bool var %s>\n" prefix v
