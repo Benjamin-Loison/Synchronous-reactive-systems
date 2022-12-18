@@ -119,8 +119,7 @@ let rec cp_value fmt (value, (hloc: (ident * bool, string * int) Hashtbl.t)) =
   | CVariable (CVInput s) -> Format.fprintf fmt "%s" s
   | CVariable (CVStored (arr, idx)) -> Format.fprintf fmt "state->%s[%d]" arr idx
   | CConst (CInt i) -> Format.fprintf fmt "%d" i
-  | CConst (CBool true) -> Format.fprintf fmt "true"
-  | CConst (CBool false) -> Format.fprintf fmt "false"
+  | CConst (CBool b) -> Format.fprintf fmt "%s" (Bool.to_string b)
   | CConst (CReal r) -> Format.fprintf fmt "%f" r
   | CMonOp (MOp_not, v) -> Format.fprintf fmt "! (%a)" cp_value (v, hloc)
   | CMonOp (MOp_minus, v) -> Format.fprintf fmt "- (%a)" cp_value (v, hloc)
