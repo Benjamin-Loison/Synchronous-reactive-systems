@@ -151,12 +151,13 @@ let prefix_ = ref "\t"
 
 (** The following function prints one transformed equation of the program into a
   * set of instruction ending in assignments. *)
-let rec cp_expression fmt (expr, hloc) =
+let rec cp_block fmt (b, hloc) =
+  match b with
+  | [] -> ()
+  | e :: b ->
+    Format.fprintf fmt "%a%a" cp_expression (e, hloc) cp_block (b, hloc)
+and cp_expression fmt (expr, hloc) =
   let prefix = !prefix_ in
-  let rec cp_block fmt = function
-    | [] -> ()
-    | e :: b -> Format.fprintf fmt "%a%a" cp_expression (e, hloc) cp_block b
-  in
   match expr with
   | CAssign (CVStored (arr, idx), value) ->
     begin
@@ -195,15 +196,18 @@ let rec cp_expression fmt (expr, hloc) =
       Format.fprintf fmt "%sif (%a) {\n%a%s}\n"
         p
         cp_value (v, hloc)
-        cp_block b1
+        cp_block (b1, hloc)
         p;
         prefix_ := p
   | CIf (v, b1, b2) ->
+      let p = prefix in
+      prefix_ := prefix^"\t";
       Format.fprintf fmt "%sif (%a) {\n%a%s} else {\n%a%s}\n"
-        prefix
+        p
         cp_value (v, hloc)
-        cp_block b1
-        prefix
-        cp_block b2
-        prefix
+        cp_block (b1, hloc)
+        p
+        cp_block (b2, hloc)
+        p;
+      prefix_  := p
 

@@ -2,6 +2,7 @@ open Ast
 open Intermediate_ast
 open Intermediate_utils
 open Cprint
+open Cast
 open Utils
 open Ctranslation
 
@@ -254,13 +255,19 @@ let cp_init_aux_nodes fmt (node, h) =
 
 
 (** [cp_equations] prints the node equations. *)
-let rec cp_equations fmt (eqs, hloc, h) =
-  match eqs with
-  | [] -> ()
-  | eq :: eqs ->
-    Format.fprintf fmt "%a%a"
-      cp_expression (equation_to_expression (hloc, h, eq), hloc.nt_map)
-      cp_equations (eqs, hloc, h)
+let cp_equations fmt (eqs, hloc, h) =
+  (** [main_block] is modified through some optimization passes, eg:
+    * - merge two CIf blocks using the same condition
+    * - replace [if (! c) { b1 } else {b2 }] by [if(c) { b2 } else { b1 }]
+    *
+    *  These passes are defined in [ctranslation.ml]
+      *)
+  let main_block: c_block =
+    List.map (fun eq -> equation_to_expression (hloc, h, eq)) eqs in
+  let main_block = remove_ifnot main_block in
+  let main_block = merge_neighbour_ifs main_block in
+  Format.fprintf fmt "\t/*Main code :*/\n%a"
+    cp_block (main_block, hloc.nt_map)
 
 (** [cp_node] prints a single node *)
 let cp_node fmt (node, h) =

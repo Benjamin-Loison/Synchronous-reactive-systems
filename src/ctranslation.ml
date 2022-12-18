@@ -74,8 +74,29 @@ let rec equation_to_expression (node_st, node_sts, (vl, expr)) =
             [equation_to_expression (node_st, node_sts, (vl, expr))],
             [])
     end
-  (*TODO!
-  | IETriOp of triop * i_expression * i_expression * i_expression
-  | IEReset of i_expression * i_expression*)
-  | _ -> failwith "[ctranslation.ml] TODO!"
+  | IETriOp (TOp_if, _, _, _) ->
+      failwith "[ctranslation.ml] A pass should have turned conditionnals into merges."
+  | IETriOp (TOp_merge, c, e, e') ->
+      CIf (iexpression_to_cvalue c,
+        [equation_to_expression (node_st, node_sts, (vl, e))],
+        [equation_to_expression (node_st, node_sts, (vl, e'))])
+  | IEReset _ -> failwith "[ctranslation.ml] A pass should have removed resets."
 
+
+
+let rec remove_ifnot = function
+  | [] -> []
+  | CIf (CMonOp (MOp_not, c), bh :: bt, b'h :: b't) :: block ->
+      (CIf (c, b'h :: b't, bh :: bt)) :: (remove_ifnot block )
+  | stmt :: block ->
+      stmt :: (remove_ifnot block)
+
+let rec merge_neighbour_ifs = function
+  | [] -> []
+  | [stmt] -> [stmt]
+  | CIf (c, e1, e2) :: CIf (c', e'1, e'2) :: b ->
+      if c = c'
+        then merge_neighbour_ifs (CIf (c, e1 @ e'1, e2 @ e'2) :: b)
+        else (CIf (c, e1, e2)) :: merge_neighbour_ifs (CIf (c', e'1, e'2) :: b)
+  | stmt :: stmt' :: b ->
+      stmt :: merge_neighbour_ifs (stmt' :: b)
