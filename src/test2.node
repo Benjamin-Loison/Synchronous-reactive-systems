@@ -5,6 +5,9 @@ let
 tel
 
 node n (i: int) returns (o1, o2: int);
+var t1, t2: int; c: bool;
 let
+  c = true -> not pre c;
+  (t1, t2) = aux (i) when c;
   (o1, o2) = aux (i);
 tel

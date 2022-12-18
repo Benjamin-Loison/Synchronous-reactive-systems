@@ -17,7 +17,7 @@ let rec iexpression_to_cvalue e =
   | IEApp   _
   | IETriOp _ -> failwith "[ctranslation.ml] Should not happened."
 
-let equation_to_expression (node_st, node_sts, (vl, expr)) =
+let rec equation_to_expression (node_st, node_sts, (vl, expr)) =
   let hloc = node_st.nt_map in
   let fetch_unique_var () =
     match vl with
@@ -67,10 +67,15 @@ let equation_to_expression (node_st, node_sts, (vl, expr)) =
           vl
         in
       CApplication (node.n_name,i , al, vl, node_sts)
+  | IETuple _ -> failwith "[ctranslation.ml] linearisatiosn should have transformed you."
+  | IEWhen  (expr, cond) ->
+    begin
+      CIf (iexpression_to_cvalue cond,
+            [equation_to_expression (node_st, node_sts, (vl, expr))],
+            [])
+    end
   (*TODO!
   | IETriOp of triop * i_expression * i_expression * i_expression
-  | IEWhen  of i_expression * i_expression
-  | IEReset of i_expression * i_expression
-  | IETuple of (i_expression list)*)
+  | IEReset of i_expression * i_expression*)
   | _ -> failwith "[ctranslation.ml] TODO!"
 

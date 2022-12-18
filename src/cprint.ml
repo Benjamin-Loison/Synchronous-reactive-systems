@@ -42,7 +42,7 @@ let cp_state_types fmt (h: (ident, node_state) Hashtbl.t): unit =
 
 let cp_var' fmt = function
   | CVStored (arr, idx) -> Format.fprintf fmt "state->%s[%d]" arr idx
-  | CVInput s -> Format.fprintf fmt "s"
+  | CVInput s -> Format.fprintf fmt "%s" s
 
 let cp_var fmt = function
   | IVar s -> Format.fprintf fmt "int %s" s
@@ -147,10 +147,12 @@ let rec cp_value fmt (value, (hloc: (ident * bool, string * int) Hashtbl.t)) =
   | CMonOp (MOp_pre, _) ->
       failwith "[cprint.ml] The linearization should have removed this case."
 
+let prefix_ = ref "\t"
+
 (** The following function prints one transformed equation of the program into a
   * set of instruction ending in assignments. *)
 let rec cp_expression fmt (expr, hloc) =
-  let prefix = "\t" in
+  let prefix = !prefix_ in
   let rec cp_block fmt = function
     | [] -> ()
     | e :: b -> Format.fprintf fmt "%a%a" cp_expression (e, hloc) cp_block b
@@ -170,8 +172,9 @@ let rec cp_expression fmt (expr, hloc) =
     begin
       let aux_node_st = Hashtbl.find h fn in
       let h_out = aux_node_st.nt_output_map in
-      Format.fprintf fmt "%sfn_%s(%a);\n"
+      Format.fprintf fmt "%sfn_%s(%s, %a);\n"
         prefix fn
+        (Format.asprintf "state->aux_states[%d]" (nb-1))
         cp_varlist' argl;
       let _ = List.fold_left
         (fun i var ->
@@ -186,9 +189,21 @@ let rec cp_expression fmt (expr, hloc) =
           | CVInput _ -> failwith "[cprint.ml] Impossible!")
         0 destl in ()
     end
-  | CIf (v, b1, b2) ->
-      Format.fprintf fmt "if (%a) {\n%a\t\t} else {\n%a\t\t}\n"
+  | CIf (v, b1, []) ->
+      let p = prefix in
+      prefix_ := prefix^"\t";
+      Format.fprintf fmt "%sif (%a) {\n%a%s}\n"
+        p
         cp_value (v, hloc)
         cp_block b1
+        p;
+        prefix_ := p
+  | CIf (v, b1, b2) ->
+      Format.fprintf fmt "%sif (%a) {\n%a%s} else {\n%a%s}\n"
+        prefix
+        cp_value (v, hloc)
+        cp_block b1
+        prefix
         cp_block b2
+        prefix
 

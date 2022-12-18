@@ -247,7 +247,7 @@ let cp_init_aux_nodes fmt (node, h) =
     then ()
     else begin
       Format.fprintf fmt "\t/* Initialize the auxiliary nodes */\n\
-          \tif (state->is_init) {\n%a\t}\n"
+          \tif (state->is_init) {\n%a\t}\n\n\n"
         aux (node, nst, nst.nt_count_app)
     end
 
