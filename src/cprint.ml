@@ -11,7 +11,7 @@ let rec cp_includes fmt = function
       Format.fprintf fmt "#include <%s.h>\n%a" h cp_includes t
 
 let cp_node_state fmt (st: node_state) =
-  let maybeprint fmt (ty, nb, name): unit =
+  let print_if_any fmt (ty, nb, name): unit =
     if nb = 0
       then ()
       else Format.fprintf fmt "\n\t%s %s[%d];" ty name nb
@@ -21,18 +21,18 @@ let cp_node_state fmt (st: node_state) =
       Format.fprintf fmt "typedef struct {%a%a%a\n\
             \tbool is_init;\n\
             } %s;\n\n"
-        maybeprint ("int", st.nt_nb_int, "ivars")
-        maybeprint ("bool", st.nt_nb_bool, "bvars")
-        maybeprint ("double", st.nt_nb_real, "rvars")
+        print_if_any ("int", st.nt_nb_int, "ivars")
+        print_if_any ("bool", st.nt_nb_bool, "bvars")
+        print_if_any ("double", st.nt_nb_real, "rvars")
         st.nt_name
     else
       Format.fprintf fmt "typedef struct {%a%a%a\n\
             \tbool is_init;\n\
             \tvoid* aux_states[%d]; /* stores the states of auxiliary nodes */\n\
             } %s;\n\n"
-        maybeprint ("int", st.nt_nb_int, "ivars")
-        maybeprint ("bool", st.nt_nb_bool, "bvars")
-        maybeprint ("double", st.nt_nb_real, "rvars")
+        print_if_any ("int", st.nt_nb_int, "ivars")
+        print_if_any ("bool", st.nt_nb_bool, "bvars")
+        print_if_any ("double", st.nt_nb_real, "rvars")
         st.nt_count_app st.nt_name
 
 let cp_state_types fmt (h: (ident, node_state) Hashtbl.t): unit =
@@ -50,7 +50,7 @@ let cp_var fmt = function
   | RVar s -> Format.fprintf fmt "double %s" s
 
 let rec cp_varlist' fmt vl =
-  let maybeprint fmt = function
+  let print_if_any fmt = function
     | [] -> ()
     | _ :: _ -> Format.fprintf fmt ", "
   in
@@ -59,11 +59,11 @@ let rec cp_varlist' fmt vl =
   | v :: vl ->
     Format.fprintf fmt "%a%a%a"
     cp_var' v
-    maybeprint vl
+    print_if_any vl
     cp_varlist' vl
 
 let rec cp_varlist fmt vl =
-  let maybeprint fmt = function
+  let print_if_any fmt = function
     | [] -> ()
     | _ :: _ -> Format.fprintf fmt ", "
   in
@@ -72,7 +72,7 @@ let rec cp_varlist fmt vl =
   | v :: vl ->
     Format.fprintf fmt "%a%a%a"
     cp_var v
-    maybeprint vl
+    print_if_any vl
     cp_varlist vl
 
 let cp_prototype fmt (node, h): unit =
