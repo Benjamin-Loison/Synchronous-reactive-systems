@@ -17,7 +17,8 @@ let rec iexpression_to_cvalue e =
   | IEApp   _
   | IETriOp _ -> failwith "[ctranslation.ml] Should not happened."
 
-let equation_to_expression ((hloc: (ident * bool, string * int)Hashtbl.t), ((vl, expr): i_equation)) : c_expression =
+let equation_to_expression (node_st, node_sts, (vl, expr)) =
+  let hloc = node_st.nt_map in
   let fetch_unique_var () =
     match vl with
     | [v] ->
@@ -44,12 +45,32 @@ let equation_to_expression ((hloc: (ident * bool, string * int)Hashtbl.t), ((vl,
   | IEComp  (op, e, e') ->
       CAssign (fetch_unique_var (),
                 CComp (op, iexpression_to_cvalue e, iexpression_to_cvalue e'))
+      (** [CApp] below represents the i-th call to an aux node *)
+  | IEApp   (i, node, e) ->
+      (** e is a tuple of variables due to the linearization pass *)
+      let al: c_var list =
+        match e with
+        | IETuple l ->
+            List.map
+              (function
+                | IEVar v -> v
+                | _ -> failwith "[ctranslation.ml] should not happened due to the linearization pass."
+                ) l
+        | _ -> failwith "[ctranslation.ml] should not happened due to the linearization pass."
+        in
+      let vl =
+        List.map
+          (fun v ->
+            match Hashtbl.find_opt hloc (Utils.name_of_var v, false) with
+            | Some (arr, idx) -> CVStored (arr, idx)
+            | None -> CVInput (Utils.name_of_var v))
+          vl
+        in
+      CApplication (node.n_name,i , al, vl, node_sts)
   (*TODO!
   | IETriOp of triop * i_expression * i_expression * i_expression
   | IEWhen  of i_expression * i_expression
   | IEReset of i_expression * i_expression
-  | IETuple of (i_expression list)
-      (** [CApp] below represents the n-th call to an aux node *)
-  | IEApp   of int * t_node * i_expression*)
+  | IETuple of (i_expression list)*)
   | _ -> failwith "[ctranslation.ml] TODO!"
 

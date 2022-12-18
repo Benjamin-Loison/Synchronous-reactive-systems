@@ -254,20 +254,20 @@ let cp_init_aux_nodes fmt (node, h) =
 
 
 (** [cp_equations] prints the node equations. *)
-let rec cp_equations fmt (eqs, hloc) =
+let rec cp_equations fmt (eqs, hloc, h) =
   match eqs with
   | [] -> ()
   | eq :: eqs ->
     Format.fprintf fmt "%a%a"
-      cp_expression (equation_to_expression (hloc.nt_map, eq), hloc.nt_map)
-      cp_equations (eqs, hloc)
+      cp_expression (equation_to_expression (hloc, h, eq), hloc.nt_map)
+      cp_equations (eqs, hloc, h)
 
 (** [cp_node] prints a single node *)
 let cp_node fmt (node, h) =
   Format.fprintf fmt "%a\n{\n%a%a\n\n\tstate->is_init = false;\n%a}\n"
     cp_prototype (node, h)
     cp_init_aux_nodes (node, h)
-    cp_equations (node.in_equations, Hashtbl.find h node.in_name)
+    cp_equations (node.in_equations, Hashtbl.find h node.in_name, h)
     cp_prevars (node, h)
 
 (** [cp_nodes] recursively prints all the nodes of a program. *)

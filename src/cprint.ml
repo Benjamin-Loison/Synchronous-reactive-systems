@@ -166,11 +166,26 @@ let rec cp_expression fmt (expr, hloc) =
       Format.fprintf fmt "%a%a"
         cp_expression (e, hloc)
         cp_expression (e', hloc)
-  | CApplication (fn, l) ->
-      (Format.fprintf fmt "%s(%a);"
-        fn
-        cp_varlist' l;
-        failwith "TODO: use nt_output_map to fetch the output!")
+  | CApplication (fn, nb, argl, destl, h) ->
+    begin
+      let aux_node_st = Hashtbl.find h fn in
+      let h_out = aux_node_st.nt_output_map in
+      Format.fprintf fmt "%sfn_%s(%a);\n"
+        prefix fn
+        cp_varlist' argl;
+      let _ = List.fold_left
+        (fun i var ->
+          match var with
+          | CVStored (arr, idx) ->
+            let (arr', idx') = Hashtbl.find h_out i in
+            Format.fprintf fmt "%sstate->%s[%d] = ((%s*)(state->aux_states[%d]))->%s[%d];\n"
+              prefix arr idx
+              aux_node_st.nt_name (nb-1)
+              arr' idx';
+            i+1
+          | CVInput _ -> failwith "[cprint.ml] Impossible!")
+        0 destl in ()
+    end
   | CIf (v, b1, b2) ->
       Format.fprintf fmt "if (%a) {\n%a\t\t} else {\n%a\t\t}\n"
         cp_value (v, hloc)
