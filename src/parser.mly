@@ -144,6 +144,7 @@
 
 %token WHEN
 %token RESET
+%token EVERY 
 
 %token IF
 %token THEN
@@ -381,9 +382,9 @@ expr:
          then EWhen (t1, e1, e2)
          else raise (MyParsingError ("The when does not type-check!",
                     current_location())) }
-  | expr RESET expr
-      { let e1 = $1 in let t1 = type_exp e1 in
-        let e2 = $3 in let t2 = type_exp e2 in
+  | RESET expr EVERY expr
+      { let e1 = $2 in let t1 = type_exp e1 in
+        let e2 = $4 in let t2 = type_exp e2 in
         if t2 = [TBool]
          then EReset (t1, e1, e2)
          else raise (MyParsingError ("The reset does not type-check!",
