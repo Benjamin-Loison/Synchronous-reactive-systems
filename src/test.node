@@ -1,10 +1,10 @@
-node my_and (a, b: bool) returns (o: bool);
+node test_merge_tuples (a, b: bool) returns (o: bool);
+var t: bool;
 let
-  o = a and b;
+  (o, t) = if a and b then (true, false) else (false, true);
 tel
 
-node n (i: int) returns (o: int);
-var v: bool;
-let
-  (o, v) = (1, my_and (pre o = 8, pre v));
-tel
+--node my_and (a, b: bool) returns (o: bool);
+--let
+--  o = if a then b else false;
+--tel

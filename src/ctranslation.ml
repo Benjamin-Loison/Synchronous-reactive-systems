@@ -67,7 +67,8 @@ let rec equation_to_expression (node_st, node_sts, (vl, expr)) =
           vl
         in
       CApplication (node.n_name,i , al, vl, node_sts)
-  | IETuple _ -> failwith "[ctranslation.ml] linearization should have transformed you."
+  | IETuple _ -> failwith "[ctranslation.ml] linearization should have \
+                            transformed the tuples of the right members."
   | IEWhen  (expr, cond) ->
     begin
       CIf (iexpression_to_cvalue cond,

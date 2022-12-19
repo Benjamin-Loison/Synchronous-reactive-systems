@@ -25,7 +25,7 @@ let exec_passes ast verbose debug passes f =
 
 let _ =
   (** Usage and argument parsing. *)
-  let default_passes = ["linearization_pre"; "linearization_tuples"; "linearization_app";
+  let default_passes = ["remove_if"; "linearization_pre"; "linearization_tuples"; "linearization_app";
     "equations_ordering"] in
   let sanity_passes = ["chkvar_init_unicity"; "check_typing"] in
   let usage_msg =
@@ -63,6 +63,7 @@ let _ =
   let passes_table  = Hashtbl.create 100 in
   List.iter (fun (s, k) -> Hashtbl.add passes_table s k)
     [
+      ("remove_if", Passes.pass_if_removal);
       ("linearization_tuples", Passes.pass_linearization_tuples);
       ("linearization_app", Passes.pass_linearization_app);
       ("linearization_pre", Passes.pass_linearization_pre);

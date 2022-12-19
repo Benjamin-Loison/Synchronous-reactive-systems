@@ -163,7 +163,7 @@ and cp_expression fmt (expr, hloc) =
       Format.fprintf fmt "%sstate->%s[%d] = %a;\n"
         prefix arr idx cp_value (value, hloc)
     end
-  | CAssign (CVInput _, _) -> failwith "should not happened."
+  | CAssign (CVInput _, _) -> failwith "[cprint.ml] never assign an input."
   | CSeq (e, e') ->
       Format.fprintf fmt "%a%a"
         cp_expression (e, hloc)
