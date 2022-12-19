@@ -356,7 +356,7 @@ let pass_linearization_app verbose debug =
               | _ -> (** Need for a new var. *)
                   let ty = match type_exp e with
                            | [ty] -> ty
-                           | _ -> failwith "[passes.ml] One should not provide
+                           | _ -> failwith "One should not provide
                            tuples as arguments to an auxiliary node."
                            in
                   let nvar: string = Format.sprintf "_applin%d" !applin_count in
@@ -373,7 +373,7 @@ let pass_linearization_app verbose debug =
                   (neq_patt, neq_expr)::eqs'@eqs, vars, EVar([ty], nvar) :: l)
             l ([], vars, []) in
         eqs, vars, EApp (tout, n, ETuple (tin, l))
-    | EApp _ -> failwith "[passes.ml] Should not happened (parser)"
+    | EApp _ -> failwith "Should not happened (parser)"
   in
   (** [aux_linearization_app] applies the previous function to every equation *)
   let aux_linearization_app node =

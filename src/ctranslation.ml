@@ -15,7 +15,7 @@ let rec iexpression_to_cvalue e =
   | IEReset _
   | IETuple _
   | IEApp   _
-  | IETriOp _ -> failwith "[ctranslation.ml] Should not happened."
+  | IETriOp _ -> failwith "Should not happened."
 
 let rec equation_to_expression (node_st, node_sts, (vl, expr)) =
   let hloc = node_st.nt_map in
@@ -27,7 +27,7 @@ let rec equation_to_expression (node_st, node_sts, (vl, expr)) =
         | None -> CVInput (Utils.name_of_var v)
         | Some (arr, idx) -> CVStored (arr, idx)
       end
-    | _ -> failwith "[ctranslation.ml] This should not happened."
+    | _ -> failwith "This should not happened."
   in
   match expr with
   | IEVar   vsrc ->
@@ -54,9 +54,9 @@ let rec equation_to_expression (node_st, node_sts, (vl, expr)) =
             List.map
               (function
                 | IEVar v -> v
-                | _ -> failwith "[ctranslation.ml] should not happened due to the linearization pass."
+                | _ -> failwith "should not happened due to the linearization pass."
                 ) l
-        | _ -> failwith "[ctranslation.ml] should not happened due to the linearization pass."
+        | _ -> failwith "should not happened due to the linearization pass."
         in
       let vl =
         List.map
@@ -67,7 +67,7 @@ let rec equation_to_expression (node_st, node_sts, (vl, expr)) =
           vl
         in
       CApplication (node.n_name,i , al, vl, node_sts)
-  | IETuple _ -> failwith "[ctranslation.ml] linearization should have \
+  | IETuple _ -> failwith "linearization should have \
                             transformed the tuples of the right members."
   | IEWhen  (expr, cond) ->
     begin
@@ -76,12 +76,12 @@ let rec equation_to_expression (node_st, node_sts, (vl, expr)) =
             [])
     end
   | IETriOp (TOp_if, _, _, _) ->
-      failwith "[ctranslation.ml] A pass should have turned conditionnals into merges."
+      failwith "A pass should have turned conditionnals into merges."
   | IETriOp (TOp_merge, c, e, e') ->
       CIf (iexpression_to_cvalue c,
         [equation_to_expression (node_st, node_sts, (vl, e))],
         [equation_to_expression (node_st, node_sts, (vl, e'))])
-  | IEReset _ -> failwith "[ctranslation.ml] A pass should have removed resets."
+  | IEReset _ -> failwith "A pass should have removed resets."
 
 
 

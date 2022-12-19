@@ -105,7 +105,7 @@ let rec cp_value fmt (value, (hloc: (ident * bool, string * int) Hashtbl.t)) =
     | BOp_mod -> "%"
     | BOp_and -> "&&"
     | BOp_or  -> "||"
-    | BOp_arrow -> failwith "[cprint.ml] string_of_binop undefined on (->)"
+    | BOp_arrow -> failwith "string_of_binop undefined on (->)"
   in
   let string_of_compop = function
     | COp_eq -> "=="
@@ -128,7 +128,7 @@ let rec cp_value fmt (value, (hloc: (ident * bool, string * int) Hashtbl.t)) =
                     | CVStored (arr, idx) ->
                       begin
                         match find_varname hloc (arr, idx) with
-                        | None -> failwith "[cprint.ml] This varname should be defined."
+                        | None -> failwith "This varname should be defined."
                         | Some (n, _) -> n
                       end
                     | CVInput n -> n) in
@@ -144,7 +144,7 @@ let rec cp_value fmt (value, (hloc: (ident * bool, string * int) Hashtbl.t)) =
       Format.fprintf fmt "(%a) %s (%a)"
         cp_value (v, hloc) (string_of_compop op) cp_value (v', hloc)
   | CMonOp (MOp_pre, _) ->
-      failwith "[cprint.ml] The linearization should have removed this case."
+      failwith "The linearization should have removed this case."
 
 let prefix_ = ref "\t"
 
@@ -163,7 +163,7 @@ and cp_expression fmt (expr, hloc) =
       Format.fprintf fmt "%sstate->%s[%d] = %a;\n"
         prefix arr idx cp_value (value, hloc)
     end
-  | CAssign (CVInput _, _) -> failwith "[cprint.ml] never assign an input."
+  | CAssign (CVInput _, _) -> failwith "never assign an input."
   | CSeq (e, e') ->
       Format.fprintf fmt "%a%a"
         cp_expression (e, hloc)
@@ -186,7 +186,7 @@ and cp_expression fmt (expr, hloc) =
               aux_node_st.nt_name (nb-1)
               arr' idx';
             i+1
-          | CVInput _ -> failwith "[cprint.ml] Impossible!")
+          | CVInput _ -> failwith "Impossible!")
         0 destl in ()
     end
   | CIf (v, b1, []) ->
