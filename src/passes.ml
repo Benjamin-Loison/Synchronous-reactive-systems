@@ -225,7 +225,7 @@ let pass_linearization_pre verbose debug =
     (** Applies the previous function to the expressions of every equation. *)
     let new_equations, new_locvars =
       List.fold_left
-        (fun (eqs, vars) eq ->
+        (fun (eqs, vars) (patt, expr) ->
           let eqs', vars, expr = pre_aux_expression vars expr in
           (patt, expr)::eqs' @ eqs, vars)
         ([], node.n_local_vars)
