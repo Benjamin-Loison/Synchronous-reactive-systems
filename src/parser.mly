@@ -63,7 +63,7 @@
 
   let make_binop_nonbool e1 e2 op error_msg =
     let t1 = type_exp e1 in let t2 = type_exp e2 in
-    (** e1 and e2 should be nunmbers here.*)
+    (** e1 and e2 should be numbers here.*)
     if list_chk t1 [[TInt]; [TReal]] && list_chk t2 [[TInt]; [TReal]]
       then
         begin
@@ -88,7 +88,7 @@
 
   let make_comp_nonbool e1 e2 op error_msg =
     let t1 = type_exp e1 in let t2 = type_exp e2 in
-    (** e1 and e2 should be nunmbers here.*)
+    (** e1 and e2 should be numbers here.*)
     if list_chk t1 [[TInt]; [TReal]] && list_chk t2 [[TInt]; [TReal]]
       then
         begin
