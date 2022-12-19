@@ -96,8 +96,15 @@ let rec merge_neighbour_ifs = function
   | [] -> []
   | [stmt] -> [stmt]
   | CIf (c, e1, e2) :: CIf (c', e'1, e'2) :: b ->
-      if c = c'
-        then merge_neighbour_ifs (CIf (c, e1 @ e'1, e2 @ e'2) :: b)
-        else (CIf (c, e1, e2)) :: merge_neighbour_ifs (CIf (c', e'1, e'2) :: b)
+    begin
+      if c = c' then
+        merge_neighbour_ifs (CIf (c, e1 @ e'1, e2 @ e'2) :: b)
+      else if c = CMonOp (MOp_not, c') then
+        merge_neighbour_ifs (CIf (c, e1 @ e'2, e2 @ e'1) :: b)
+      else if c' = CMonOp (MOp_not, c) then
+        merge_neighbour_ifs (CIf (c, e1 @ e'2, e2 @ e'1) :: b)
+      else CIf (c, e1, e2) :: merge_neighbour_ifs (CIf (c', e'1, e'2) :: b)
+    end
   | stmt :: stmt' :: b ->
       stmt :: merge_neighbour_ifs (stmt' :: b)
+
