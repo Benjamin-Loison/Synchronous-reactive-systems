@@ -698,7 +698,7 @@ let automaton_translation debug automaton =
   in
 
   let rec translate_var s v explist ty = match explist with
-  | [] -> default_constant ty (* TODO *)
+  | [] -> default_constant ty
   | (state, exp)::q -> 
       ETriOp(Utils.type_exp exp, TOp_if,
         EComp([TBool], COp_eq, 
