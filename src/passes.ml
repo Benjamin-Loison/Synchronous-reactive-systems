@@ -391,6 +391,79 @@ let pass_linearization_app verbose debug =
 
 
 
+let pass_ensure_assignment_value verbose debug =
+  let varcount = ref 0 in
+  let rec aux_expr should_be_value vars expr =
+    match expr with
+    | EConst _ | EVar   _ -> [], vars, expr
+    | EMonOp (t, op, e) ->
+        let eqs, vars, e = aux_expr true vars e in
+        eqs, vars, EMonOp (t, op, e)
+    | EBinOp (t, op, e, e') ->
+        let eqs, vars, e = aux_expr true vars e in
+        let eqs', vars, e' = aux_expr true vars e' in
+        eqs @ eqs', vars, EBinOp (t, op, e, e')
+    | ETriOp (t, op, e, e', e'') ->
+        let eqs, vars, e = aux_expr should_be_value vars e in
+        let eqs', vars, e' = aux_expr should_be_value vars e' in
+        let eqs'', vars, e'' = aux_expr should_be_value vars e'' in
+        eqs @ eqs' @ eqs'', vars, ETriOp (t, op, e, e', e'')
+    | EComp  (t, op, e, e') ->
+        let eqs, vars, e = aux_expr true vars e in
+        let eqs', vars, e' = aux_expr true vars e' in
+        eqs @ eqs', vars, EComp (t, op, e, e')
+    | EWhen  (t, e, e') ->
+        let eqs, vars, e = aux_expr should_be_value vars e in
+        let eqs', vars, e' = aux_expr should_be_value vars e' in
+        eqs @ eqs', vars, EWhen (t, e, e')
+    | EReset (t, e, e') ->
+        let eqs, vars, e = aux_expr should_be_value vars e in
+        let eqs', vars, e' = aux_expr should_be_value vars e' in
+        eqs @ eqs', vars, EReset (t, e, e')
+    | ETuple (t, l) ->
+        let eqs, vars, l =
+          List.fold_right
+            (fun e (eqs, vars, l) ->
+              let eqs', vars, e = aux_expr true vars e in
+              eqs' @ eqs, vars, e :: l)
+            l ([], vars, []) in
+        eqs, vars, ETuple (t, l)
+    | EApp   (t, n, e) ->
+        let eqs, vars, e = aux_expr true vars e in
+        if should_be_value
+          then
+            let nvar = Format.sprintf "_assignval%d" !varcount in
+            incr varcount;
+            let nvar: t_var =
+              match t with
+              | [TBool] -> BVar nvar
+              | [TReal] -> RVar nvar
+              | [TInt]  -> IVar nvar
+              | _ ->
+                failwith "An application occurring here should return a single element."
+              in
+            let neq_patt: t_varlist = (t, [nvar]) in
+            let neq_expr: t_expression = EApp (t, n, e) in
+            let vars = varlist_concat neq_patt vars in
+            (neq_patt, neq_expr) :: eqs, vars, EVar (t, nvar)
+          else
+            eqs, vars, EApp (t, n, e)
+  in
+  let aux_ensure_assign_val node =
+    let new_equations, vars =
+      List.fold_left
+        (fun (eqs, vars) eq ->
+          let eqs', vars, expr = aux_expr false vars (snd eq) in
+          (fst eq, expr) :: eqs' @ eqs, vars
+          )
+        ([], node.n_local_vars) node.n_equations
+      in
+    Some { node with n_equations = new_equations; n_local_vars = vars }
+  in
+  node_pass aux_ensure_assign_val
+
+
+
 (** [sanity_pass_assignment_unicity] makes sure that there is at most one
   * equation defining each variable (and that no equation tries to redefine an
   * input).
