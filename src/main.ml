@@ -47,7 +47,7 @@ let _ =
     ["remove_if";
       "linearization_pre"; "linearization_tuples"; "linearization_app";
       "equations_ordering"] in
-  let sanity_passes = ["chkvar_init_unicity"; "check_typing"] in
+  let sanity_passes = ["sanity_pass_assignment_unicity"; "check_typing"] in
   let usage_msg =
     "Usage: main [-passes p1,...,pn] [-ast] [-verbose] [-debug] \
       [-o output_file] [-m main_function] source_file\n" in
@@ -87,7 +87,7 @@ let _ =
       ("linearization_tuples", Passes.pass_linearization_tuples);
       ("linearization_app", Passes.pass_linearization_app);
       ("linearization_pre", Passes.pass_linearization_pre);
-      ("chkvar_init_unicity", Passes.chkvar_init_unicity);
+      ("sanity_pass_assignment_unicity", Passes.sanity_pass_assignment_unicity);
       ("automata_translation", Passes.automata_translation_pass);
       ("automata_validity", Passes.check_automata_validity);
       ("equations_ordering", Passes.pass_eq_reordering);
