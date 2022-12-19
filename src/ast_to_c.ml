@@ -288,29 +288,28 @@ let rec cp_nodes fmt (nodes, h) =
 
 
 
-let dump_var_locations (st: node_states) =
+(** [dump_var_locations] dumps the internal tables to map the program variable
+  * (after all the passes) to their location in the final C program. *)
+let dump_var_locations fmt (st: node_states) =
+  Format.fprintf fmt "Tables mapping the AST Variables to the C variables:\n";
   Hashtbl.iter
     (fun n st ->
-      Format.printf "\n\n\tNODE: %s\n" n;
+      Format.fprintf fmt "  ∗ NODE: %s\n" n;
     Hashtbl.iter
     (fun (s, (ispre: bool)) ((arr: string), (idx: int)) ->
       match ispre with
-      | true -> Format.printf "PRE Variable %s stored as %s[%d]\n" s arr idx
-      | false -> Format.printf "    Variable %s stored as %s[%d]\n" s arr idx)
+      | true -> Format.fprintf fmt "    PRE Variable %s stored as %s[%d]\n" s arr idx
+      | false -> Format.fprintf fmt "        Variable %s stored as %s[%d]\n" s arr idx)
     st.nt_map)
-    st;
-    Format.printf "\n\n"
+    st
 
 
 
 (** main function that prints a C-code from a term of type [t_nodelist]. *)
-let ast_to_c (debug: bool) prog =
+let ast_to_c verbose debug prog =
+  verbose "Computation of the node_states";
   let prog_st_types = make_state_types prog in
-  let () =
-    if debug
-      then dump_var_locations prog_st_types
-      else ()
-    in
+  debug (Format.asprintf "%a" dump_var_locations prog_st_types);
   let prog: i_nodelist = ast_to_intermediate_ast prog prog_st_types in
   Format.printf "%a\n\n%a\n\n/* Nodes: */\n%a"
     cp_includes (Config.c_includes)

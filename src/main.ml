@@ -9,24 +9,44 @@ let print_debug d s =
 let print_verbose v s =
   if v then Format.printf "\x1b[33;01;04mStatus:\x1b[0m %s\n" s else ()
 
+
+
+(** [exec_passes] executes the passes on the parsed typed-AST.
+  * A pass should return [Some program] in case of a success, and [None]
+  * otherwise.
+  *
+  * The function [exec_passes] returns the optionnal program returned by the
+  * last pass.
+  *
+  * A pass should never be interrupted by an exception. Nevertheless, we make
+  * sure that no pass raise one. *)
 let exec_passes ast verbose debug passes f =
   let rec aux ast = function
     | [] ->  f ast
     | (n, p) :: passes ->
         verbose (Format.asprintf "Executing pass %s:\n" n);
-        match p verbose debug ast with
-        | None -> (exit_error ("Error while in the pass "^n^".\n"); exit 0)
-        | Some ast -> (
-        debug (Format.asprintf "Current AST (after %s):\n%a\n" n Lustre_pp.pp_ast ast);
-        aux ast passes)
+        try
+        begin
+          match p verbose debug ast with
+          | None -> (exit_error ("Error while in the pass "^n^".\n"); exit 0)
+          | Some ast -> (
+            debug
+              (Format.asprintf
+                "Current AST (after %s):\n%a\n" n Lustre_pp.pp_ast ast);
+            aux ast passes)
+        end with
+        | _ -> failwith ("[main.ml] The pass "^n^" should have catched me!")
   in
   aux ast passes
 
 
+
 let _ =
   (** Usage and argument parsing. *)
-  let default_passes = ["remove_if"; "linearization_pre"; "linearization_tuples"; "linearization_app";
-    "equations_ordering"] in
+  let default_passes =
+    ["remove_if";
+      "linearization_pre"; "linearization_tuples"; "linearization_app";
+      "equations_ordering"] in
   let sanity_passes = ["chkvar_init_unicity"; "check_typing"] in
   let usage_msg =
     "Usage: main [-passes p1,...,pn] [-ast] [-verbose] [-debug] \
@@ -106,6 +126,11 @@ let _ =
       end
     in
 
+  (** Computes the list of passes to execute. If the [-test] flag is set, all
+    * sanity passes (ie. passes which do not modify the AST, but ensure its
+    * validity) are re-run after any other pass.
+    *
+    * Note: the sanity passes are always executed before any other. *)
   let passes =
     List.map
       (fun (pass: string) -> (pass,
@@ -129,6 +154,6 @@ let _ =
     else (
       if !nopopt
         then (fun _ -> ())
-        else Ast_to_c.ast_to_c !debug)
+        else Ast_to_c.ast_to_c print_verbose print_debug)
   end
 

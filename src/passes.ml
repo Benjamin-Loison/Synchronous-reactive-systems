@@ -4,6 +4,8 @@ open Ast
 open Passes_utils
 open Utils
 
+
+
 (** [pass_if_removal] replaces the `if` construct with `when` and `merge` ones.
   *
   *     [x1, ..., xn = if c then e_l else e_r;]
@@ -18,7 +20,8 @@ open Utils
   * order to have the expressions active at each step.
   *)
 let pass_if_removal verbose debug =
-  let varcount = ref 0 in
+  let varcount = ref 0 in (** new variables are called «_ifrem[varcount]» *)
+  (** Males a pattern (t_varlist) of fresh variables matching the type t *)
   let make_patt t: t_varlist =
     (t, List.fold_right
       (fun ty acc ->
@@ -33,11 +36,14 @@ let pass_if_removal verbose debug =
         nvar :: acc)
       t [])
   in
+  (** If a tuple contains a single element, it should not be. *)
   let simplify_tuple t =
     match t with
     | ETuple (t, [elt]) -> elt
     | _ -> t
   in
+  (** For each equation, build a list of equations and a new list of local
+    * variables as well as an updated version of the original equation. *)
   let rec aux_eq vars eq: t_eqlist * t_varlist * t_equation =
     let patt, expr = eq in
     match expr with
@@ -127,6 +133,7 @@ let pass_if_removal verbose debug =
         let eqs, vars, (_, e) = aux_eq vars (patt, e) in
         eqs, vars, (patt, EApp (t, n, e))
   in
+  (** For each node, apply the previous function to all equations. *)
   let aux_if_removal node =
     let new_equations, new_locvars =
       List.fold_left
@@ -139,7 +146,23 @@ let pass_if_removal verbose debug =
   in
   node_pass aux_if_removal
 
+
+
+(** [pass_linearization_tuples] transforms expressions of the form
+  *     (x1, ..., xn) = (e1, ..., em);
+  * into:
+  *     p1 = e1;
+  *       ...
+  *     pm = em;
+  * where flatten (p1, ..., pm) = x1, ..., xn
+  *
+  * Idem for tuples hidden behind merges and when:
+  *     patt = (...) when c;
+  *     patt = merge c (...) (...);
+  *)
 let pass_linearization_tuples verbose debug ast =
+  (** [split_tuple] takes an equation and produces an equation list
+    * corresponding to the [pi = ei;] above. *)
   let rec split_tuple (eq: t_equation): t_eqlist =
     let patt, expr = eq in
     match expr with
@@ -154,6 +177,9 @@ let pass_linearization_tuples verbose debug ast =
     | ETuple (_, []) -> []
     | _ -> [eq]
   in
+  (** For each node, apply the previous function to all equations.
+    * It builds fake equations in order to take care of tuples behind
+    *  merge/when. *)
   let aux_linearization_tuples node =
     let new_equations = List.flatten
      (List.map
@@ -186,8 +212,15 @@ let pass_linearization_tuples verbose debug ast =
   try node_pass aux_linearization_tuples ast with
   | PassExn err -> (debug err; None)
 
+
+
+(** [pass_linearization_app] makes sure that any argument to a function is
+  * either a variable, or of the form [pre _] (which will be translated as a
+  * variable in the final C code. *)
 let pass_linearization_app verbose debug =
-  let applin_count = ref 0 in
+  let applin_count = ref 0 in (* new variables are called «_applin[varcount]» *)
+  (** [aux_expr] recursively explores the AST in order to find applications, and
+    * adds the requires variables and equations. *)
   let rec aux_expr vars expr: t_eqlist * t_varlist * t_expression =
     match expr with
     | EConst _ | EVar   _ -> [], vars, expr
@@ -253,22 +286,21 @@ let pass_linearization_app verbose debug =
         eqs, vars, EApp (tout, n, ETuple (tin, l))
     | EApp _ -> failwith "[passes.ml] Should not happened (parser)"
   in
-  let aux vars eq =
-    let eqs, vars, expr = aux_expr vars (snd eq) in
-    (fst eq, expr) :: eqs, vars
-  in
+  (** [aux_linearization_app] applies the previous function to every equation *)
   let aux_linearization_app node =
     let new_equations, new_locvars =
       List.fold_left
         (fun (eqs, vars) eq ->
-          let es, vs = aux vars eq in
-          es @ eqs, vs)
+          let eqs', vars, expr = aux_expr vars (snd eq) in
+          (fst eq, expr) :: eqs' @ eqs, vars)
         ([], node.n_local_vars)
         node.n_equations
       in
     Some { node with n_local_vars = new_locvars; n_equations = new_equations }
   in
   node_pass aux_linearization_app
+
+
 
 let chkvar_init_unicity verbose debug : t_nodelist -> t_nodelist option =
   let aux (node: t_node) : t_node option =
@@ -363,8 +395,11 @@ let pass_linearization_pre verbose debug =
       | EVar _ -> [], vars, expr
       | EMonOp (t, op, e) ->
           begin
-          match op with
-          | MOp_pre ->
+          match op, e with
+          | MOp_pre, EVar _ ->
+              let eqs, vars, e = pre_aux_expression vars e in
+              eqs, vars, EMonOp (t, op, e)
+          | MOp_pre, _ ->
               let eqs, vars, e = pre_aux_expression vars e in
               let nvar: string = fresh_var_name vars 6 in
               let nvar = match t with
@@ -376,7 +411,7 @@ let pass_linearization_pre verbose debug =
               let neq_expr: t_expression = e in
               let vars = varlist_concat (t, [nvar]) vars in
               (neq_patt, neq_expr) :: eqs, vars, EMonOp (t, MOp_pre, EVar (t, nvar))
-          | _ ->
+          | _, _ ->
               let eqs, vars, e = pre_aux_expression vars e in
               eqs, vars, EMonOp (t, op, e)
           end

@@ -1,10 +1,15 @@
+node id (a: bool) returns (o: bool);
+let
+  o = a;
+tel
+
 node test_merge_tuples (a, b: bool) returns (o: bool);
 var t: bool;
 let
   (o, t) = if a and b then (true, false) else (false, true);
 tel
 
---node my_and (a, b: bool) returns (o: bool);
---let
---  o = if a then b else false;
---tel
+node my_and (a, b: bool) returns (o: bool);
+let
+  o = if a then b else id(false -> a);
+tel
