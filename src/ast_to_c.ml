@@ -291,7 +291,7 @@ let rec cp_nodes fmt (nodes, h) =
 (** [dump_var_locations] dumps the internal tables to map the program variable
   * (after all the passes) to their location in the final C program. *)
 let dump_var_locations fmt (st: node_states) =
-  Format.fprintf fmt "Tables mapping the AST Variables to the C variables:\n";
+  Format.fprintf fmt "Tables mapping the AST variables to the C variables:\n";
   Hashtbl.iter
     (fun n st ->
       Format.fprintf fmt "  ∗ NODE: %s\n" n;

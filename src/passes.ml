@@ -21,7 +21,7 @@ open Utils
   *)
 let pass_if_removal verbose debug =
   let varcount = ref 0 in (** new variables are called «_ifrem[varcount]» *)
-  (** Males a pattern (t_varlist) of fresh variables matching the type t *)
+  (** Makes a pattern (t_varlist) of fresh variables matching the type t *)
   let make_patt t: t_varlist =
     (t, List.fold_right
       (fun ty acc ->
@@ -153,7 +153,7 @@ let pass_if_removal verbose debug =
   * This is required, since the pre construct is translated into a variable in
   * the final C code. *)
 let pass_linearization_pre verbose debug =
-  (** [node_lin] linearises a single node. *)
+  (** [node_lin] linearizes a single node. *)
   let node_lin (node: t_node): t_node option =
     (** [pre_aux_expression] takes an expression and returns:
       *   - a list of additional equations
@@ -188,7 +188,7 @@ let pass_linearization_pre verbose debug =
           let eqs, vars, e = pre_aux_expression vars e in
           let eqs', vars, e' = pre_aux_expression vars e' in
           eqs @ eqs', vars, EBinOp (t, op, e, e')
-      | ETriOp (t, op, e, e', e'') -> (** Do we always want a new var here ? *)
+      | ETriOp (t, op, e, e', e'') -> (** Do we always want a new var here? *)
           let eqs, vars, e = pre_aux_expression vars e in
           let nvar: string = fresh_var_name vars 6 in
           let nvar: t_var = BVar nvar in

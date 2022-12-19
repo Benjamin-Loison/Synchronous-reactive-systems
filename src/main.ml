@@ -35,7 +35,7 @@ let exec_passes ast verbose debug passes f =
                 "Current AST (after %s):\n%a\n" n Lustre_pp.pp_ast ast);
             aux ast passes)
         end with
-        | _ -> failwith ("The pass "^n^" should have catched me!")
+        | _ -> failwith ("The pass "^n^" should have caught me!")
   in
   aux ast passes
 
