@@ -40,6 +40,79 @@ let cp_state_types fmt (h: (ident, node_state) Hashtbl.t): unit =
     Format.fprintf fmt "/* Struct holding states of the node %s: */\n%a" n
       cp_node_state nst) h
 
+
+
+(** [cp_state_frees] prints the required code to recursively free the node
+  * states. *)
+let cp_state_frees fmt (iprog, sts) =
+  let rec find_callee (i: int) (f: i_node) =
+    let rec aux_expr = function
+      | IETuple [] | IEVar   _ | IEConst _ -> None
+      | IEMonOp (_, e) -> aux_expr e
+      | IEWhen  (e, e')
+      | IEReset (e, e')
+      | IEComp  (_, e, e')
+      | IEBinOp (_, e, e') ->
+        begin
+          match aux_expr e with
+          | None -> aux_expr e'
+          | Some res -> Some res
+        end
+      | IETriOp (_, e, e', e'') ->
+        begin
+          match aux_expr e with
+          | None ->
+            (match aux_expr e' with
+            | None -> aux_expr e''
+            | Some res -> Some res)
+          | Some res -> Some res
+        end
+      | IETuple (h :: t) ->
+        begin
+          match aux_expr h with
+          | None -> aux_expr (IETuple t)
+          | Some res -> Some res
+        end
+      | IEApp   (j, n, e) ->
+          if i = j
+            then Some n.n_name
+            else aux_expr e
+    in
+    List.fold_right
+      (fun (_, expr) acc ->
+        match acc with
+        | Some _ -> acc
+        | None -> aux_expr expr)
+      f.in_equations None
+  in
+  let rec cp_free_aux fmt (i, caller_name) =
+    let idx = i - 1 in
+    match find_callee i (List.find (fun n -> n.in_name = caller_name) iprog)with
+    | None -> ()
+    | Some callee_name ->
+      let callee_st = Hashtbl.find sts callee_name in
+      if callee_st.nt_count_app > 0 then
+        Format.fprintf fmt "\tif (st->aux_states[%d])\n\
+          \t\tfree_state_%s(st->aux_states + %d);\n"
+          idx callee_name idx;
+      Format.fprintf fmt "\tif (st->aux_states[%d])\n\
+          \t\tfree(st->aux_states[%d]);\n%a"
+        idx idx cp_free_aux (i+1, caller_name)
+  in
+  Hashtbl.iter
+    (fun node_name node_st ->
+      if node_st.nt_count_app = 0
+        then () (** Nothing to free for the node [node_name]. *)
+        else
+          Format.fprintf fmt "void free_state_%s(t_state_%s *st)\n\
+            {\n\
+              %a\
+            }\n"
+            node_name node_name
+            cp_free_aux (1, node_name)) sts
+
+
+
 let cp_var' fmt = function
   | CVStored (arr, idx) -> Format.fprintf fmt "state->%s[%d]" arr idx
   | CVInput s -> Format.fprintf fmt "%s" s
@@ -75,6 +148,13 @@ let rec cp_varlist fmt vl =
     print_if_any vl
     cp_varlist vl
 
+
+
+(** [cp_prototype] prints functions prototypes (without the «;»). It is only
+  * used to write the beginning of functions right now. If we later allow to
+  * use auxiliary nodes before their definition, it might be useful to declare
+  * all the prototypes at the beginning of the file (Cf. [cp_prototypes] below.
+  *)
 let cp_prototype fmt (node, h): unit =
   match Hashtbl.find_opt h node.in_name with
   | None -> failwith "This should not happened!"
@@ -96,6 +176,10 @@ let rec cp_prototypes fmt ((nodes, h): i_nodelist * node_states) =
 
 
 
+(** [cp_value] prints values, that is unary or binary operations which can be
+  * inlined in the final code without requiring many manipulations.
+  * It uses a lot of parenthesis at the moment. An improvement would be to
+  * remove useless ones at some point. *)
 let rec cp_value fmt (value, (hloc: (ident * bool, string * int) Hashtbl.t)) =
   let string_of_binop = function
     | BOp_add -> "+"
@@ -145,6 +229,8 @@ let rec cp_value fmt (value, (hloc: (ident * bool, string * int) Hashtbl.t)) =
         cp_value (v, hloc) (string_of_compop op) cp_value (v', hloc)
   | CMonOp (MOp_pre, _) ->
       failwith "The linearization should have removed this case."
+
+
 
 let prefix_ = ref "\t"
 
@@ -317,6 +403,12 @@ let cp_main_fn fmt (prog, sts) =
         s (Format.sprintf "_char_of_%s" s)
         cp_char_to_bool vl
   in
+  let cp_free fmt () =
+    let main_st = Hashtbl.find  sts "main" in
+    if main_st.nt_count_app = 0
+      then ()
+      else Format.fprintf fmt "\tfree_state_main(&st)\n"
+  in
   match List.find_opt (fun n -> n.n_name = "main") prog with
   | None -> ()
   | Some node ->
@@ -333,10 +425,12 @@ let cp_main_fn fmt (prog, sts) =
           \t\tfn_main(&state, %a);\n\
           \t\tprintf(%a);\n\
         \t}\n\
-        \treturn EXIT_SUCCESS;\n\
+        %a\treturn EXIT_SUCCESS;\n\
       }\n"
       cp_array (snd node.n_inputs)
       cp_scanf (snd node.n_inputs)
       cp_char_to_bool (snd node.n_inputs)
       cp_inputs (false, snd node.n_inputs)
       cp_printf (snd node.n_outputs)
+      cp_free ()
+

@@ -1,5 +1,18 @@
-node main (i: int) returns (a, b: int);
+node id_int (i: int) returns (o: int);
 let
-  (a, b) = (i, i);
+  o = i -> i;
+tel
+
+node aux (i, j: int) returns (o: int);
+let
+  o = id_int(i) + id_int(j);
+tel
+
+node main (i: int) returns (a, b: int);
+var tmp: int;
+let
+  a = 1;
+  b = aux (i, a);
+  tmp = aux (a+b, i);
 tel
 
