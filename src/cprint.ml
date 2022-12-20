@@ -19,7 +19,7 @@ let cp_node_state fmt (st: node_state) =
   if st.nt_count_app = 0
     then
       Format.fprintf fmt "typedef struct {%a%a%a\n\
-            \tbool is_init;\n\
+            \tbool is_init, is_reset;\n\
             } %s;\n\n"
         print_if_any ("int", st.nt_nb_int, "ivars")
         print_if_any ("bool", st.nt_nb_bool, "bvars")
@@ -27,7 +27,7 @@ let cp_node_state fmt (st: node_state) =
         st.nt_name
     else
       Format.fprintf fmt "typedef struct {%a%a%a\n\
-            \tbool is_init;\n\
+            \tbool is_init, is_reset;\n\
             \tvoid* aux_states[%d]; /* stores the states of auxiliary nodes */\n\
             } %s;\n\n"
         print_if_any ("int", st.nt_nb_int, "ivars")
@@ -191,8 +191,14 @@ and cp_expression fmt (expr, hloc) =
     end
   | CReset (node_name, i, v, b) ->
     begin
-      Format.fprintf fmt "\tif (%a) {\n\t\t((t_state_%s*)(state->aux_states[%d]))->is_init = true;\n\t}\n%a\n"
+      Format.fprintf fmt "\tif (%a) {\n\
+        \t\t((t_state_%s*)(state->aux_states[%d]))->is_init = true;\n\
+        \t\t((t_state_%s*)(state->aux_states[%d]))->is_reset = true;\n\
+        \t}\n\
+        %a\n"
         cp_value (v, hloc)
+        node_name
+        (i - 1)
         node_name
         (i - 1)
         cp_block (b, hloc)
