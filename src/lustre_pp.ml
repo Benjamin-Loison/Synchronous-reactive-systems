@@ -37,7 +37,7 @@ let rec pp_varlist fmt : t_varlist -> unit = function
       Format.fprintf fmt "%s: bool, %a" h pp_varlist (tl, h' :: l)
   | (TReal :: tl, RVar h :: h' :: l) ->
       Format.fprintf fmt "%s: real, %a" h pp_varlist (tl, h' :: l)
-  | _ -> raise (MyTypeError "This exception should not have beed be raised.")
+  | _ -> raise (MyTypeError "(1) This exception should not have beed be raised.")
 
 let pp_expression =
   let upd_prefix s = s ^ " |  " in
@@ -49,7 +49,9 @@ let pp_expression =
           Format.fprintf fmt "%a%a"
             (pp_expression_aux (prefix^" |> ")) expr
             (pp_expression_list prefix) (ETuple (tt, exprs))
-      | _ -> raise (MyTypeError "This exception should not have been raised.")
+      | ETuple ([], _) -> failwith "A non-empty tuple has no type!"
+      | ETuple (_, []) -> failwith "An empty tuple has a type!"
+      | _ -> failwith "This exception should never occur."
     in
     match expression with
     | EWhen (_, e1, e2) ->
