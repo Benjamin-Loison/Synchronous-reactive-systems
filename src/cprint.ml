@@ -241,30 +241,23 @@ let cp_main_fn fmt (prog, sts) =
       cp_array vl
   in
   let rec cp_inputs fmt (f, l) =
-    match f, l with
-    | _,  [] -> ()
-    | true, h :: t ->
-      Format.fprintf fmt ", %s%a"
-        (Utils.name_of_var h)
-        cp_inputs (true, t)
-    | false, h :: t ->
-      Format.fprintf fmt "%s%a"
+    match l with
+    | [] -> ()
+    | h :: t ->
+      (if f
+        then Format.fprintf fmt ", %s%a"
+        else Format.fprintf fmt "%s%a")
         (Utils.name_of_var h)
         cp_inputs (true, t)
   in
   let cp_scanf fmt vl =
     let rec cp_scanf_str fmt (b, vl) =
-      match b, vl with
-      | _, [] -> ()
-      | true, h :: t ->
-        Format.fprintf fmt " %s%a"
-        (match h with
-        | IVar _ -> "%d"
-        | BVar _ -> "%c"
-        | RVar _ -> "%lf")
-        cp_scanf_str (true, t)
-      | false, h :: t ->
-        Format.fprintf fmt "%s%a"
+      match vl with
+      | [] -> ()
+      | h :: t ->
+        (if b
+          then Format.fprintf fmt " %s%a"
+          else Format.fprintf fmt "%s%a")
         (match h with
         | IVar _ -> "%d"
         | BVar _ -> "%c"
@@ -286,17 +279,12 @@ let cp_main_fn fmt (prog, sts) =
   in
   let cp_printf fmt vl =
     let rec cp_printf_str fmt (b, vl) =
-      match b, vl with
-      | _, [] -> ()
-      | true, h :: t ->
-        Format.fprintf fmt " %s%a"
-        (match h with
-        | IVar _ -> "%d"
-        | BVar _ -> "%c"
-        | RVar _ -> "%f")
-        cp_printf_str (true, t)
-      | false, h :: t ->
-        Format.fprintf fmt "%s%a"
+      match vl with
+      | [] -> ()
+      | h :: t ->
+        (if b
+          then Format.fprintf fmt " %s%a"
+          else Format.fprintf fmt "%s%a")
         (match h with
         | IVar _ -> "%d"
         | BVar _ -> "%c"
