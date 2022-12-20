@@ -91,13 +91,16 @@ let cp_state_frees fmt (iprog, sts) =
     | None -> ()
     | Some callee_name ->
       let callee_st = Hashtbl.find sts callee_name in
-      if callee_st.nt_count_app > 0 then
-        Format.fprintf fmt "\tif (st->aux_states[%d])\n\
-          \t\tfree_state_%s((t_state_%s*)(st->aux_states[%d]));\n"
-          idx callee_name callee_name idx;
-      Format.fprintf fmt "\tif (st->aux_states[%d])\n\
-          \t\tfree(st->aux_states[%d]);\n%a"
-        idx idx cp_free_aux (i+1, caller_name)
+      if callee_st.nt_count_app > 0
+        then
+          Format.fprintf fmt "\tif (st->aux_states[%d]) {\n\
+            \t\tfree_state_%s((t_state_%s*)(st->aux_states[%d]));\n\
+            \t\tfree (st->aux_state[%d]);\n\t}\n%a"
+            idx callee_name callee_name idx
+            idx cp_free_aux (i+1, caller_name)
+        else Format.fprintf fmt "\tif (st->aux_states[%d])\n\
+            \t\tfree(st->aux_states[%d]);\n%a"
+            idx idx cp_free_aux (i+1, caller_name)
   in
   Hashtbl.iter
     (fun node_name node_st ->

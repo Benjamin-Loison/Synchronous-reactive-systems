@@ -237,7 +237,7 @@ let cp_init_aux_nodes fmt (node, h) =
     | Some n ->
       begin
       Format.fprintf fmt "%a\t\tif(!state->is_reset) {\n\
-          \t\t\tstate->aux_states[%d] = malloc (sizeof (%s));\n\
+          \t\t\tstate->aux_states[%d] = calloc (1, sizeof (%s));\n\
           \t\t}\n\
           \t\t((%s*)(state->aux_states[%d]))->is_init = true;\n\
           \t\t((%s*)(state->aux_states[%d]))->is_reset = state->is_reset;\n"
