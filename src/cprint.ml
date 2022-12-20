@@ -93,12 +93,19 @@ let cp_state_frees fmt (iprog, sts) =
       let callee_st = Hashtbl.find sts callee_name in
       if callee_st.nt_count_app > 0 then
         Format.fprintf fmt "\tif (st->aux_states[%d])\n\
-          \t\tfree_state_%s(st->aux_states + %d);\n"
-          idx callee_name idx;
+          \t\tfree_state_%s((t_state_%s*)(st->aux_states[%d]));\n"
+          idx callee_name callee_name idx;
       Format.fprintf fmt "\tif (st->aux_states[%d])\n\
           \t\tfree(st->aux_states[%d]);\n%a"
         idx idx cp_free_aux (i+1, caller_name)
   in
+  Hashtbl.iter
+    (fun node_name node_st ->
+      if node_st.nt_count_app = 0
+        then () (** Nothing to free for the node [node_name]. *)
+        else
+          Format.fprintf fmt "void free_state_%s(t_state_%s *);\n"
+            node_name node_name) sts;
   Hashtbl.iter
     (fun node_name node_st ->
       if node_st.nt_count_app = 0
@@ -407,7 +414,7 @@ let cp_main_fn fmt (prog, sts) =
     let main_st = Hashtbl.find  sts "main" in
     if main_st.nt_count_app = 0
       then ()
-      else Format.fprintf fmt "\tfree_state_main(&st)\n"
+      else Format.fprintf fmt "\tfree_state_main(&state);\n"
   in
   match List.find_opt (fun n -> n.n_name = "main") prog with
   | None -> ()
@@ -420,7 +427,7 @@ let cp_main_fn fmt (prog, sts) =
         \tstate.is_reset = false;\n\
         \twhile(true) {\n\
           \t\tscanf(\"%%s\", _buffer);\n\
-          \t\tif(!strcmp(_buffer, \"exit\")) { exit (EXIT_SUCCESS); }\n\
+          \t\tif(!strcmp(_buffer, \"exit\")) { break; }\n\
           \t\tsscanf(_buffer, %a);\n%a\
           \t\tfn_main(&state, %a);\n\
           \t\tprintf(%a);\n\
