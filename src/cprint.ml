@@ -397,7 +397,7 @@ let cp_main_fn fmt (prog, sts) =
         Format.fprintf fmt ", state.%s[%d]%a"
           s i cp_printf_arg (h, i+1)
     in
-    Format.fprintf fmt "\"%a\"%a"
+    Format.fprintf fmt "\"%a\\n\"%a"
       cp_printf_str (false, vl)
       cp_printf_arg ((Hashtbl.find sts "main").nt_output_map, 0)
   in
