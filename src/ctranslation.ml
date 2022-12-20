@@ -81,7 +81,8 @@ let rec equation_to_expression (node_st, node_sts, (vl, expr)) =
       CIf (iexpression_to_cvalue c,
         [equation_to_expression (node_st, node_sts, (vl, e))],
         [equation_to_expression (node_st, node_sts, (vl, e'))])
-  | IEReset _ -> failwith "A pass should have removed resets."
+  | IEReset (IEApp (i, node, b), c) -> CReset (node.n_name, i, iexpression_to_cvalue c, [equation_to_expression (node_st, node_sts, (vl, IEApp (i, node, b)))])
+  | IEReset _ -> failwith "A pass should have turned not function resets into function resets"
 
 
 

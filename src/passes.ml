@@ -147,6 +147,73 @@ let pass_if_removal verbose debug =
   node_pass aux_if_removal
 
 
+(** [pass_linearization_reset] makes sure that all reset constructs in the program
+  * are applied to functions.
+  * This is required, since the reset construct is translated into resetting the
+  * function state in the final C code. *)
+let pass_linearization_reset verbose debug =
+  (** [node_lin] linearizes a single node. *)
+  let node_lin (node: t_node): t_node option =
+    (** [reset_aux_expression] takes an expression and returns:
+      *   - a list of additional equations
+      *   - the new list of local variables
+      *   - an updated version of the original expression *)
+    let rec reset_aux_expression vars expr: t_eqlist * t_varlist * t_expression =
+      match expr with
+      | EVar _ -> [], vars, expr
+      | EMonOp (t, op, e) ->
+          let eqs, vars, e = reset_aux_expression vars e in
+          eqs, vars, EMonOp (t, op, e)
+      | EBinOp (t, op, e, e') ->
+          let eqs, vars, e = reset_aux_expression vars e in
+          let eqs', vars, e' = reset_aux_expression vars e' in
+          eqs @ eqs', vars, EBinOp (t, op, e, e')
+      | ETriOp (t, op, e, e', e'') ->
+          let eqs, vars, e = reset_aux_expression vars e in
+          let eqs', vars, e' = reset_aux_expression vars e' in
+          let eqs'', vars, e'' = reset_aux_expression vars e'' in
+          eqs @ eqs' @ eqs'', vars, ETriOp (t, op, e, e', e'')
+      | EComp  (t, op, e, e') ->
+          let eqs, vars, e = reset_aux_expression vars e in
+          let eqs', vars, e' = reset_aux_expression vars e' in
+          eqs @ eqs', vars, EComp (t, op, e, e')
+      | EWhen  (t, e, e') ->
+          let eqs, vars, e = reset_aux_expression vars e in
+          let eqs', vars, e' = reset_aux_expression vars e' in
+          eqs @ eqs', vars, EWhen (t, e, e')
+      | EReset (t, e, e') ->
+          (
+            match e with
+              | EApp (t_app, n_app, e_app) ->
+                let eqs, vars, e = reset_aux_expression vars e in
+                eqs, vars, EReset (t, e, e')
+              | e -> reset_aux_expression vars e
+          )
+      | EConst _ -> [], vars, expr
+      | ETuple (t, l) ->
+          let eqs, vars, l = List.fold_right
+            (fun e (eqs, vars, l) ->
+              let eqs', vars, e = reset_aux_expression vars e in
+              eqs' @ eqs, vars, (e :: l))
+            l ([], vars, []) in
+          eqs, vars, ETuple (t, l)
+      | EApp (t, n, e) ->
+          let eqs, vars, e = reset_aux_expression vars e in
+          eqs, vars, EApp (t, n, e)
+      in
+    (** Applies the previous function to the expressions of every equation. *)
+    let new_equations, new_locvars =
+      List.fold_left
+        (fun (eqs, vars) (patt, expr) ->
+          let eqs', vars, expr = reset_aux_expression vars expr in
+          (patt, expr)::eqs' @ eqs, vars)
+        ([], node.n_local_vars)
+        node.n_equations
+      in
+    Some { node with n_local_vars = new_locvars; n_equations = new_equations }
+  in
+  node_pass node_lin
+
 
 (** [pass_linearization_pre] makes sure that all pre constructs in the program
   * are applied to variables.
