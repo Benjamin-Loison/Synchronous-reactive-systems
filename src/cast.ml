@@ -14,6 +14,7 @@ and c_expression =
   | CSeq of c_expression * c_expression
   | CIf of c_value * c_block * c_block
   | CApplication of ident * int * c_var list * c_var list * node_states
+  | CReset of ident * int * c_value * c_block
 
 (** A value here is anything that can be inlined into a single C expression
   * containing no function call, condition, ... *)

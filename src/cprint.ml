@@ -189,6 +189,14 @@ and cp_expression fmt (expr, hloc) =
           | CVInput _ -> failwith "Impossible!")
         0 destl in ()
     end
+  | CReset (node_name, i, v, b) ->
+    begin
+      Format.fprintf fmt "\tif (%a) {\n\t\t((t_state_%s*)(state->aux_states[%d]))->is_init = true;\n\t}\n%a\n"
+        cp_value (v, hloc)
+        node_name
+        (i - 1)
+        cp_block (b, hloc)
+    end
   | CIf (v, b1, []) ->
       let p = prefix in
       prefix_ := prefix^"\t";

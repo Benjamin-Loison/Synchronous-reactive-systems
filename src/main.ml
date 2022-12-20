@@ -44,8 +44,9 @@ let exec_passes ast verbose debug passes f =
 let _ =
   (** Usage and argument parsing. *)
   let default_passes =
-    ["remove_if";
+    ["linearization_reset"; "remove_if";
       "linearization_pre"; "linearization_tuples"; "linearization_app";
+      "ensure_assign_val";
       "equations_ordering"] in
   let sanity_passes = ["sanity_pass_assignment_unicity"; "check_typing"] in
   let usage_msg =
@@ -87,6 +88,8 @@ let _ =
       ("linearization_tuples", Passes.pass_linearization_tuples);
       ("linearization_app", Passes.pass_linearization_app);
       ("linearization_pre", Passes.pass_linearization_pre);
+      ("ensure_assign_val", Passes.pass_ensure_assignment_value);
+      ("linearization_reset", Passes.pass_linearization_reset);
       ("sanity_pass_assignment_unicity", Passes.sanity_pass_assignment_unicity);
       ("automata_translation", Passes.automata_translation_pass);
       ("automata_validity", Passes.check_automata_validity);
