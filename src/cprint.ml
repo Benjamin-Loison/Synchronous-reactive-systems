@@ -323,7 +323,9 @@ let cp_main_fn fmt (prog, sts) =
     Format.fprintf fmt "int main (int argc, char **argv)\n\
       {\n%a\n\
         \tchar _buffer[1024];\n\
-        \tt_state_main state; state.is_init = true;\n\
+        \tt_state_main state;\n\
+        \tstate.is_init = true;\n\
+        \tstate.is_reset = false;\n\
         \twhile(true) {\n\
           \t\tscanf(\"%%s\", _buffer);\n\
           \t\tif(!strcmp(_buffer, \"exit\")) { exit (EXIT_SUCCESS); }\n\
