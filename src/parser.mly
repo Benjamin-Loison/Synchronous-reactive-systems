@@ -216,8 +216,8 @@ node_content:
               if vars_distinct e_in e_out (snd $10)
                 then (Hashtbl.add defined_nodes node_name n; n)
                 else raise (MyParsingError
-                            ("There is a conflict between the names of local, input \
-                            or output variables.",
+                            ("There is a conflict between the names of local,\
+                             input or output variables.",
                             current_location()))
           end};
 
@@ -324,22 +324,22 @@ expr:
           "Addition expects both arguments to be (the same kind of) numbers." }
   | expr MINUS expr
       { make_binop_nonbool $1 $3 BOp_sub
-          "You should know better; subtraction hates booleans" }
+          "Substraction expects both arguments to be (the same kind of) numbers." }
   | expr BO_mul expr
       { make_binop_nonbool $1 $3 BOp_mul
-          "You should know better; multiplication hates booleans" }
+          "Multiplication expects both arguments to be (the same kind of) numbers." }
   | expr BO_div expr
       { make_binop_nonbool $1 $3 BOp_div
-          "You should know better; division hates booleans" }
+          "Division expects both arguments to be (the same kind of) numbers." }
   | expr BO_mod expr
       { make_binop_nonbool $1 $3 BOp_mod
-          "You should know better; modulo hates booleans" }
+          "Modulo expects both arguments to be numbers." }
   | expr BO_and expr
       { make_binop_bool $1 $3 BOp_and
-          "You should know better; conjunction hates numbers" }
+          "Conjunction expects both arguments to be booleans." }
   | expr BO_or expr
       { make_binop_bool $1 $3 BOp_or
-          "You should know better; disjunction hates numbers" }
+          "Disjunction expects both arguments to be booleans." }
   | expr BO_arrow expr
       { let e1 = $1 in let t1 = type_exp e1 in
         let e2 = $3 in let t2 = type_exp e2 in

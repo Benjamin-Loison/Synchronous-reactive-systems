@@ -319,8 +319,8 @@ and cp_expression fmt (expr, hloc) =
 
 
 
-(** [cp_main] tries to print a main function to the C code.
-  * If there is a function [main] in the lustre program, it will generate a main
+(** [cp_main] prints  a main function to the C code if necessary:
+  * if there is a function [main] in the lustre program, it will generate a main
   * function in the C code, otherwise it does not do anything.
   *)
 let cp_main_fn fmt (prog, sts) =
