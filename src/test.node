@@ -1,15 +1,5 @@
-node id (a: bool) returns (o: bool);
+node main (i: int) returns (a, b: int);
 let
-  o = a;
+  (a, b) = (i, i);
 tel
 
-node test_merge_tuples (a, b: bool) returns (o: bool);
-var t: bool;
-let
-  (o, t) = if a and b then (true, false) else (false, true);
-tel
-
-node my_and (a, b: bool) returns (o: bool);
-let
-  o = if a then b else id(false -> a);
-tel

@@ -313,15 +313,15 @@ expr:
   | MO_pre expr                        { EMonOp (type_exp $2, MOp_pre, $2) }
   | MINUS expr
       { monop_neg_condition $2 [TBool]
-          "You cannot take the opposite of a boolean expression."
+          "You cannot take the opposite of an expression that is not a number."
           (EMonOp (type_exp $2, MOp_minus, $2)) }
   | PLUS expr
       { monop_neg_condition $2 [TBool]
-          "You cannot take the plus of a boolean expression." $2 }
+          "(+) expects its argument to be a number." $2 }
   /* Binary operators */
   | expr PLUS expr
       { make_binop_nonbool $1 $3 BOp_add
-          "You should know better; addition hates booleans" }
+          "Addition expects both arguments to be (the same kind of) numbers." }
   | expr MINUS expr
       { make_binop_nonbool $1 $3 BOp_sub
           "You should know better; subtraction hates booleans" }

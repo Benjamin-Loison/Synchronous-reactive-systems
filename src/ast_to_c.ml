@@ -314,9 +314,10 @@ let ast_to_c verbose debug prog =
   verbose "Computation of the node_states";
   let prog_st_types = make_state_types prog in
   debug (Format.asprintf "%a" dump_var_locations prog_st_types);
-  let prog: i_nodelist = ast_to_intermediate_ast prog prog_st_types in
-  Format.printf "%a\n\n%a\n\n/* Nodes: */\n%a"
+  let iprog: i_nodelist = ast_to_intermediate_ast prog prog_st_types in
+  Format.printf "%a\n\n%a\n\n/* Nodes: */\n%a%a\n"
     cp_includes (Config.c_includes)
     cp_state_types prog_st_types
-    cp_nodes (prog, prog_st_types)
+    cp_nodes (iprog, prog_st_types)
+    cp_main_fn (prog, prog_st_types)
 

@@ -224,3 +224,117 @@ and cp_expression fmt (expr, hloc) =
         p;
       prefix_  := p
 
+
+
+(** [cp_main] tries to print a main function to the C code.
+  * If there is a function [main] in the lustre program, it will generate a main
+  * function in the C code, otherwise it does not do anything.
+  *)
+let cp_main_fn fmt (prog, sts) =
+  let rec cp_array fmt (vl: t_var list): unit =
+    match vl with
+    | [] -> ()
+    | v :: vl ->
+      let typ, name =
+        match v with
+        | IVar s -> ("int", s)
+        | RVar s -> ("double", s)
+        | BVar s ->
+            Format.fprintf fmt "\tchar _char_of_%s;\n" s;
+            ("bool", s)
+        in
+      Format.fprintf fmt "\t%s %s;\n%a" typ name
+      cp_array vl
+  in
+  let rec cp_inputs fmt (f, l) =
+    match l with
+    | [] -> ()
+    | h :: t ->
+      (if f
+        then Format.fprintf fmt ", %s%a"
+        else Format.fprintf fmt "%s%a")
+        (Utils.name_of_var h)
+        cp_inputs (true, t)
+  in
+  let cp_scanf fmt vl =
+    let rec cp_scanf_str fmt (b, vl) =
+      match vl with
+      | [] -> ()
+      | h :: t ->
+        (if b
+          then Format.fprintf fmt " %s%a"
+          else Format.fprintf fmt "%s%a")
+        (match h with
+        | IVar _ -> "%d"
+        | BVar _ -> "%c"
+        | RVar _ -> "%lf")
+        cp_scanf_str (true, t)
+    in
+    let rec cp_scanf_args fmt vl =
+      match vl with
+      | [] -> ()
+      | RVar s :: vl | IVar s :: vl ->
+        Format.fprintf fmt ", &%s%a" s cp_scanf_args vl
+      | BVar s :: vl ->
+        Format.fprintf fmt ", &%s%a" (Format.sprintf "_char_of_%s" s)
+          cp_scanf_args  vl
+    in
+    Format.fprintf fmt "\"%a\"%a"
+      cp_scanf_str (false, vl)
+      cp_scanf_args vl
+  in
+  let cp_printf fmt vl =
+    let rec cp_printf_str fmt (b, vl) =
+      match vl with
+      | [] -> ()
+      | h :: t ->
+        (if b
+          then Format.fprintf fmt " %s%a"
+          else Format.fprintf fmt "%s%a")
+        (match h with
+        | IVar _ -> "%d"
+        | BVar _ -> "%c"
+        | RVar _ -> "%f")
+        cp_printf_str (true, t)
+    in
+    let rec cp_printf_arg fmt (h, i) =
+      match Hashtbl.find_opt h i with
+      | None -> ()
+      | Some (s, i) ->
+        Format.fprintf fmt ", state.%s[%d]%a"
+          s i cp_printf_arg (h, i+1)
+    in
+    Format.fprintf fmt "\"%a\"%a"
+      cp_printf_str (false, vl)
+      cp_printf_arg ((Hashtbl.find sts "main").nt_output_map, 0)
+  in
+  let rec cp_char_to_bool fmt vl =
+    match vl with
+    | [] -> ()
+    | RVar _ :: vl | IVar _ :: vl -> Format.fprintf fmt "%a" cp_char_to_bool vl
+    | BVar s :: vl ->
+      Format.fprintf fmt "\t\t%s = (%s == 't') ? true : false;\n%a"
+        s (Format.sprintf "_char_of_%s" s)
+        cp_char_to_bool vl
+  in
+  match List.find_opt (fun n -> n.n_name = "main") prog with
+  | None -> ()
+  | Some node ->
+    Format.fprintf fmt "int main (int argc, char **argv)\n\
+      {\n%a\n\
+        \tchar _buffer[1024];\n\
+        \tt_state_main state; state.is_init = true;\n\
+        \twhile(true) {\n\
+          \t\tscanf(\"%%s\", _buffer);\n\
+          \t\tif(!strcmp(_buffer, \"exit\")) { exit (EXIT_SUCCESS); }\n\
+          \t\tsscanf(_buffer, %a);\n%a\
+          \t\tfn_main(&state, %a);\n\
+          \t\tprintf(%a);\n\
+        \t}\n\
+        \treturn EXIT_SUCCESS;\n\
+      }\n"
+      cp_array (snd node.n_inputs)
+      cp_scanf (snd node.n_inputs)
+      cp_char_to_bool (snd node.n_inputs)
+      cp_inputs (false, snd node.n_inputs)
+      cp_printf (snd node.n_outputs)
