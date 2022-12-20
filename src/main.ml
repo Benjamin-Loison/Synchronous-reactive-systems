@@ -88,7 +88,7 @@ let _ =
       ("linearization_tuples", Passes.pass_linearization_tuples);
       ("linearization_app", Passes.pass_linearization_app);
       ("linearization_pre", Passes.pass_linearization_pre);
-      ("ensure_assign_val", Passes.pass_ensure_assignment_valuh);
+      ("ensure_assign_val", Passes.pass_ensure_assignment_value);
       ("linearization_reset", Passes.pass_linearization_reset);
       ("sanity_pass_assignment_unicity", Passes.sanity_pass_assignment_unicity);
       ("automata_translation", Passes.automata_translation_pass);
