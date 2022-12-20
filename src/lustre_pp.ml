@@ -45,11 +45,12 @@ let pp_expression =
     let rec pp_expression_list prefix fmt exprs =
       match exprs with
       | ETuple([], []) -> ()
-      | ETuple (_ :: tt, expr :: exprs) ->
+      | ETuple (typs, expr :: exprs) ->
+          let typ_h, typ_t =
+            Utils.list_select (List.length (Utils.type_exp expr)) typs in
           Format.fprintf fmt "%a%a"
             (pp_expression_aux (prefix^" |> ")) expr
-            (pp_expression_list prefix) (ETuple (tt, exprs))
-      | ETuple ([], _) -> failwith "A non-empty tuple has no type!"
+            (pp_expression_list prefix) (ETuple (typ_t, exprs))
       | ETuple (_, []) -> failwith "An empty tuple has a type!"
       | _ -> failwith "This exception should never occur."
     in
