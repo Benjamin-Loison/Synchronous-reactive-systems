@@ -4,92 +4,544 @@ open Ast
 open Passes_utils
 open Utils
 
-let pre2vars verbose debug main_fn =
-  let rec all_pre expr =
-    match expr with
-    | EMonOp (ty, MOp_pre, expr) -> all_pre expr
-    | EMonOp _ -> false
-    | EVar _ -> true
-    | _ -> false
-  in
-  let rec pre_push expr : t_expression =
-    match expr with
-    | EVar _ -> EMonOp (type_exp expr, MOp_pre, expr)
-    | EConst _ -> expr (** pre(c) = c for any constant c *)
-    | EMonOp (ty, mop, expr) ->
-      begin
-        match mop with
-      | MOp_pre ->
-        if all_pre expr
-          then EMonOp (ty, mop, EMonOp (ty, mop, expr))
-          else pre_push (pre_push expr)
-      | _ -> EMonOp (ty, mop, pre_push expr)
-      end
-    | EBinOp (ty, bop, expr, expr') ->
-        let expr = pre_push expr in let expr' = pre_push expr' in
-        EBinOp (ty, bop, expr, expr')
-    | ETriOp (ty, top, expr, expr', expr'') ->
-        let expr = pre_push expr in let expr' = pre_push expr' in
-        let expr'' = pre_push expr'' in
-        ETriOp (ty, top, expr, expr', expr'')
-    | EComp  (ty, cop, expr, expr') ->
-        let expr = pre_push expr in let expr' = pre_push expr' in
-        EComp (ty, cop, expr, expr')
-    | EWhen  (ty, expr, expr') ->
-        let expr = pre_push expr in let expr' = pre_push expr' in
-        EWhen (ty, expr, expr')
-    | EReset (ty, expr, expr') ->
-        let expr = pre_push expr in let expr' = pre_push expr' in
-        EReset (ty, expr, expr')
-    | ETuple (ty, elist) ->
-        let elist =
-          List.fold_right (fun expr acc -> (pre_push expr) :: acc) elist [] in
-        ETuple (ty, elist)
-    | EApp   (ty, node, arg) ->
-        let arg = pre_push arg in
-        EApp (ty, node, arg)
-  in
-  let rec aux (expr: t_expression) =
-    match expr with
-    | EVar   _ -> expr
-    | EMonOp (ty, mop, expr) ->
-      begin
-        match mop with
-        | MOp_pre -> pre_push expr
-        | _ -> let expr = aux expr in EMonOp (ty, mop, expr)
-      end
-    | EBinOp (ty, bop, expr, expr') ->
-        let expr = aux expr in let expr' = aux expr' in
-        EBinOp (ty, bop, expr, expr')
-    | ETriOp (ty, top, expr, expr', expr'') ->
-        let expr = aux expr in let expr' = aux expr' in
-        let expr'' = aux expr'' in
-        ETriOp (ty, top, expr, expr', expr'')
-    | EComp  (ty, cop, expr, expr') ->
-        let expr = aux expr in let expr' = aux expr' in
-        EComp (ty, cop, expr, expr')
-    | EWhen  (ty, expr, expr') ->
-        let expr = aux expr in let expr' = aux expr' in
-        EWhen (ty, expr, expr')
-    | EReset (ty, expr, expr') ->
-        let expr = aux expr in let expr' = aux expr' in
-        EReset (ty, expr, expr')
-    | EConst (ty, c) -> EConst (ty, c)
-    | ETuple (ty, elist) ->
-        let elist =
-          List.fold_right (fun expr acc -> (aux expr) :: acc) elist [] in
-        ETuple (ty, elist)
-    | EApp   (ty, node, arg) ->
-        let arg = aux arg in
-        EApp (ty, node, arg)
-  in
-  expression_pass (somify aux)
 
-let chkvar_init_unicity verbose debug main_fn : t_nodelist -> t_nodelist option =
+
+(** [pass_if_removal] replaces the `if` construct with `when` and `merge` ones.
+  *
+  *     [x1, ..., xn = if c then e_l else e_r;]
+  * is replaced by:
+  *     (t1, ..., tn) = e_l;
+  *     (u1, ..., un) = e_r;
+  *     (v1, ..., vn) = (t1, ..., tn) when c;
+  *     (w1, ..., wn) = (u1, ..., un) when (not c);
+  *     (x1, ..., xn) = merge c (v1, ..., vn) (w1, ..., wn);
+  *
+  * Note that the first two equations (before the use of when) is required in
+  * order to have the expressions active at each step.
+  *)
+let pass_if_removal verbose debug =
+  let varcount = ref 0 in (** new variables are called «_ifrem[varcount]» *)
+  (** Makes a pattern (t_varlist) of fresh variables matching the type t *)
+  let make_patt t: t_varlist =
+    (t, List.fold_right
+      (fun ty acc ->
+        let nvar: ident = Format.sprintf "_ifrem%d" !varcount in
+        let nvar =
+          match ty with
+          | TInt -> IVar nvar
+          | TReal -> RVar nvar
+          | TBool -> BVar nvar
+          in
+        incr varcount;
+        nvar :: acc)
+      t [])
+  in
+  (** If a tuple contains a single element, it should not be. *)
+  let simplify_tuple t =
+    match t with
+    | ETuple (t, [elt]) -> elt
+    | _ -> t
+  in
+  (** For each equation, build a list of equations and a new list of local
+    * variables as well as an updated version of the original equation. *)
+  let rec aux_eq vars eq: t_eqlist * t_varlist * t_equation =
+    let patt, expr = eq in
+    match expr with
+    | EConst _ | EVar   _ -> [], vars, eq
+    | EMonOp (t, op, e) ->
+        let eqs, vars, (patt, e) = aux_eq vars (patt, e) in
+        eqs, vars, (patt, EMonOp (t, op, e))
+    | EBinOp (t, op, e, e') ->
+        let eqs, vars, (_, e) = aux_eq vars (patt, e) in
+        let eqs', vars, (_, e') = aux_eq vars (patt, e') in
+        eqs @ eqs', vars, (patt, EBinOp (t, op, e, e'))
+    | ETriOp (t, TOp_if, e, e', e'') ->
+        let eqs, vars, (_, e) = aux_eq vars (patt, e) in
+        let eqs', vars, (_, e') = aux_eq vars (patt, e') in
+        let eqs'', vars, (_, e'') = aux_eq vars (patt, e'') in
+        let patt_l: t_varlist = make_patt t in
+        let patt_r: t_varlist = make_patt t in
+        let patt_l_when: t_varlist = make_patt t in
+        let patt_r_when: t_varlist = make_patt t in
+        let expr_l: t_expression =
+          simplify_tuple
+          (ETuple
+            (fst patt_l, List.map (fun v -> EVar (type_var v, v)) (snd patt_l)))
+          in
+        let expr_r: t_expression =
+          simplify_tuple
+          (ETuple
+            (fst patt_r, List.map (fun v -> EVar (type_var v, v)) (snd patt_r)))
+          in
+        let expr_l_when: t_expression =
+          simplify_tuple
+          (ETuple
+            (fst patt_l_when, List.map (fun v -> EVar (type_var v, v))
+              (snd patt_l_when)))
+          in
+        let expr_r_when: t_expression =
+          simplify_tuple
+          (ETuple
+            (fst patt_r_when, List.map (fun v -> EVar (type_var v, v))
+              (snd patt_r_when)))
+          in
+        let equations: t_eqlist =
+          [(patt_l, e');
+            (patt_r, e'');
+            (patt_l_when,
+              EWhen (t, expr_l, e));
+            (patt_r_when,
+                EWhen (t,
+                  expr_r,
+                  (EMonOp (type_exp e, MOp_not, e))))]
+            @ eqs @ eqs' @eqs'' in
+        let vars: t_varlist =
+          varlist_concat
+            vars
+            (varlist_concat patt_l_when (varlist_concat patt_r_when
+            (varlist_concat patt_r patt_l))) in
+        let expr =
+          ETriOp (t, TOp_merge, e, expr_l_when, expr_r_when) in
+        equations, vars, (patt, expr)
+    | ETriOp (t, op, e, e', e'') ->
+        let eqs, vars, (_, e) = aux_eq vars (patt, e) in
+        let eqs', vars, (_, e') = aux_eq vars (patt, e') in
+        let eqs'', vars, (_, e'') = aux_eq vars (patt, e'') in
+        eqs @ eqs' @ eqs'', vars, (patt, ETriOp (t, op, e, e', e''))
+    | EComp  (t, op, e, e') ->
+        let eqs, vars, (_, e) = aux_eq vars (patt, e) in
+        let eqs', vars, (_, e') = aux_eq vars (patt, e') in
+        eqs @ eqs', vars, (patt, EComp (t, op, e, e'))
+    | EWhen  (t, e, e') ->
+        let eqs, vars, (_, e) = aux_eq vars (patt, e) in
+        let eqs', vars, (_, e') = aux_eq vars (patt, e') in
+        eqs @ eqs', vars, (patt, EWhen (t, e, e'))
+    | EReset (t, e, e') ->
+        let eqs, vars, (_, e) = aux_eq vars (patt, e) in
+        let eqs', vars, (_, e') = aux_eq vars (patt, e') in
+        eqs @ eqs', vars, (patt, EReset (t, e, e'))
+    | ETuple (t, l) ->
+        let eqs, vars, l, _ =
+          List.fold_right
+            (fun e (eqs, vars, l, remaining_patt) ->
+              let patt_l, patt_r = split_patt remaining_patt e in
+              let eqs', vars, (_, e) = aux_eq vars (patt_l, e) in
+              eqs' @ eqs, vars, (e :: l), patt_r)
+            l ([], vars, [], patt) in
+          eqs, vars, (patt, ETuple (t, l))
+    | EApp   (t, n, e) ->
+        let eqs, vars, (_, e) = aux_eq vars (patt, e) in
+        eqs, vars, (patt, EApp (t, n, e))
+  in
+  (** For each node, apply the previous function to all equations. *)
+  let aux_if_removal node =
+    let new_equations, new_locvars =
+      List.fold_left
+        (fun (eqs, vars) eq ->
+          let eqs', vars, eq = aux_eq vars eq in
+          eq :: eqs' @ eqs, vars)
+        ([], node.n_local_vars) node.n_equations
+      in
+    Some { node with n_equations = new_equations; n_local_vars = new_locvars }
+  in
+  node_pass aux_if_removal
+
+
+(** [pass_linearization_reset] makes sure that all reset constructs in the program
+  * are applied to functions.
+  * This is required, since the reset construct is translated into resetting the
+  * function state in the final C code. *)
+let pass_linearization_reset verbose debug =
+  (** [node_lin] linearizes a single node. *)
+  let node_lin (node: t_node): t_node option =
+    (** [reset_aux_expression] takes an expression and returns:
+      *   - a list of additional equations
+      *   - the new list of local variables
+      *   - an updated version of the original expression *)
+    let rec reset_aux_expression vars expr: t_eqlist * t_varlist * t_expression =
+      match expr with
+      | EVar _ -> [], vars, expr
+      | EMonOp (t, op, e) ->
+          let eqs, vars, e = reset_aux_expression vars e in
+          eqs, vars, EMonOp (t, op, e)
+      | EBinOp (t, op, e, e') ->
+          let eqs, vars, e = reset_aux_expression vars e in
+          let eqs', vars, e' = reset_aux_expression vars e' in
+          eqs @ eqs', vars, EBinOp (t, op, e, e')
+      | ETriOp (t, op, e, e', e'') ->
+          let eqs, vars, e = reset_aux_expression vars e in
+          let eqs', vars, e' = reset_aux_expression vars e' in
+          let eqs'', vars, e'' = reset_aux_expression vars e'' in
+          eqs @ eqs' @ eqs'', vars, ETriOp (t, op, e, e', e'')
+      | EComp  (t, op, e, e') ->
+          let eqs, vars, e = reset_aux_expression vars e in
+          let eqs', vars, e' = reset_aux_expression vars e' in
+          eqs @ eqs', vars, EComp (t, op, e, e')
+      | EWhen  (t, e, e') ->
+          let eqs, vars, e = reset_aux_expression vars e in
+          let eqs', vars, e' = reset_aux_expression vars e' in
+          eqs @ eqs', vars, EWhen (t, e, e')
+      | EReset (t, e, e') ->
+          (
+            match e with
+              | EApp (t_app, n_app, e_app) ->
+                let eqs, vars, e = reset_aux_expression vars e in
+                eqs, vars, EReset (t, e, e')
+              | e -> reset_aux_expression vars e
+          )
+      | EConst _ -> [], vars, expr
+      | ETuple (t, l) ->
+          let eqs, vars, l = List.fold_right
+            (fun e (eqs, vars, l) ->
+              let eqs', vars, e = reset_aux_expression vars e in
+              eqs' @ eqs, vars, (e :: l))
+            l ([], vars, []) in
+          eqs, vars, ETuple (t, l)
+      | EApp (t, n, e) ->
+          let eqs, vars, e = reset_aux_expression vars e in
+          eqs, vars, EApp (t, n, e)
+      in
+    (** Applies the previous function to the expressions of every equation. *)
+    let new_equations, new_locvars =
+      List.fold_left
+        (fun (eqs, vars) (patt, expr) ->
+          let eqs', vars, expr = reset_aux_expression vars expr in
+          (patt, expr)::eqs' @ eqs, vars)
+        ([], node.n_local_vars)
+        node.n_equations
+      in
+    Some { node with n_local_vars = new_locvars; n_equations = new_equations }
+  in
+  node_pass node_lin
+
+
+(** [pass_linearization_pre] makes sure that all pre constructs in the program
+  * are applied to variables.
+  * This is required, since the pre construct is translated into a variable in
+  * the final C code. *)
+let pass_linearization_pre verbose debug =
+  (** [node_lin] linearizes a single node. *)
+  let node_lin (node: t_node): t_node option =
+    (** [pre_aux_expression] takes an expression and returns:
+      *   - a list of additional equations
+      *   - the new list of local variables
+      *   - an updated version of the original expression *)
+    let rec pre_aux_expression vars expr: t_eqlist * t_varlist * t_expression =
+      match expr with
+      | EVar _ -> [], vars, expr
+      | EMonOp (t, op, e) ->
+          begin
+          match op, e with
+          | MOp_pre, EVar _ ->
+              let eqs, vars, e = pre_aux_expression vars e in
+              eqs, vars, EMonOp (t, op, e)
+          | MOp_pre, _ ->
+              let eqs, vars, e = pre_aux_expression vars e in
+              let nvar: string = fresh_var_name vars 6 in
+              let nvar = match t with
+                          | [TInt]  -> IVar nvar
+                          | [TBool] -> BVar nvar
+                          | [TReal] -> RVar nvar
+                          | _ -> failwith "Should not happened." in
+              let neq_patt: t_varlist = (t, [nvar]) in
+              let neq_expr: t_expression = e in
+              let vars = varlist_concat (t, [nvar]) vars in
+              (neq_patt, neq_expr) :: eqs, vars, EMonOp (t, MOp_pre, EVar (t, nvar))
+          | _, _ ->
+              let eqs, vars, e = pre_aux_expression vars e in
+              eqs, vars, EMonOp (t, op, e)
+          end
+      | EBinOp (t, op, e, e') ->
+          let eqs, vars, e = pre_aux_expression vars e in
+          let eqs', vars, e' = pre_aux_expression vars e' in
+          eqs @ eqs', vars, EBinOp (t, op, e, e')
+      | ETriOp (t, op, e, e', e'') -> (** Do we always want a new var here? *)
+          let eqs, vars, e = pre_aux_expression vars e in
+          let nvar: string = fresh_var_name vars 6 in
+          let nvar: t_var = BVar nvar in
+          let neq_patt: t_varlist = ([TBool], [nvar]) in
+          let neq_expr: t_expression = e in
+          let vars = varlist_concat vars (neq_patt) in
+          let eqs', vars, e' = pre_aux_expression vars e' in
+          let eqs'', vars, e'' = pre_aux_expression vars e'' in
+          (neq_patt, neq_expr) :: eqs @ eqs' @ eqs'', vars, ETriOp (t, op, e, e', e'')
+      | EComp  (t, op, e, e') ->
+          let eqs, vars, e = pre_aux_expression vars e in
+          let eqs', vars, e' = pre_aux_expression vars e' in
+          eqs @ eqs', vars, EComp (t, op, e, e')
+      | EWhen  (t, e, e') ->
+          let eqs, vars, e = pre_aux_expression vars e in
+          let eqs', vars, e' = pre_aux_expression vars e' in
+          eqs @ eqs', vars, EWhen (t, e, e')
+      | EReset (t, e, e') ->
+          let eqs, vars, e = pre_aux_expression vars e in
+          let eqs', vars, e' = pre_aux_expression vars e' in
+          eqs @ eqs', vars, EReset (t, e, e')
+      | EConst _ -> [], vars, expr
+      | ETuple (t, l) ->
+          let eqs, vars, l = List.fold_right
+            (fun e (eqs, vars, l) ->
+              let eqs', vars, e = pre_aux_expression vars e in
+              eqs' @ eqs, vars, (e :: l))
+            l ([], vars, []) in
+          eqs, vars, ETuple (t, l)
+      | EApp   (t, n, e) ->
+          let eqs, vars, e = pre_aux_expression vars e in
+          eqs, vars, EApp (t, n, e)
+      in
+    (** Applies the previous function to the expressions of every equation. *)
+    let new_equations, new_locvars =
+      List.fold_left
+        (fun (eqs, vars) (patt, expr) ->
+          let eqs', vars, expr = pre_aux_expression vars expr in
+          (patt, expr)::eqs' @ eqs, vars)
+        ([], node.n_local_vars)
+        node.n_equations
+      in
+    Some { node with n_local_vars = new_locvars; n_equations = new_equations }
+  in
+  node_pass node_lin
+
+
+
+(** [pass_linearization_tuples] transforms expressions of the form
+  *     (x1, ..., xn) = (e1, ..., em);
+  * into:
+  *     p1 = e1;
+  *       ...
+  *     pm = em;
+  * where flatten (p1, ..., pm) = x1, ..., xn
+  *
+  * Idem for tuples hidden behind merges and when:
+  *     patt = (...) when c;
+  *     patt = merge c (...) (...);
+  *)
+let pass_linearization_tuples verbose debug ast =
+  (** [split_tuple] takes an equation and produces an equation list
+    * corresponding to the [pi = ei;] above. *)
+  let rec split_tuple (eq: t_equation): t_eqlist =
+    let patt, expr = eq in
+    match expr with
+    | ETuple (_, expr_h :: expr_t) ->
+      begin
+        let t_l = type_exp expr_h in
+        let patt_l, patt_r = list_select (List.length t_l) (snd patt) in
+        let t_r = List.flatten (List.map type_var patt_r) in
+        ((t_l, patt_l), expr_h) ::
+          split_tuple ((t_r, patt_r), ETuple (t_r, expr_t))
+      end
+    | ETuple (_, []) -> []
+    | _ -> [eq]
+  in
+  (** For each node, apply the previous function to all equations.
+    * It builds fake equations in order to take care of tuples behind
+    *  merge/when. *)
+  let aux_linearization_tuples node =
+    let new_equations = List.flatten
+     (List.map
+        (fun eq ->
+          match snd eq with
+          | ETuple _ -> split_tuple eq
+          | EWhen (t, ETuple (_, l), e') ->
+              List.map
+                (fun (patt, expr) -> (patt, EWhen (type_exp expr, expr, e')))
+                (split_tuple (fst eq, ETuple (t, l)))
+          | ETriOp (t, TOp_merge, c, ETuple (_, l), ETuple (_, l')) ->
+            begin
+              if List.length l <> List.length l'
+                || List.length t <> List.length (snd (fst eq))
+                then raise (PassExn "Error while merging tuples.")
+                else
+                  fst
+                    (List.fold_left2
+                    (fun (eqs, remaining_patt) el er ->
+                      let patt, remaining_patt = split_patt remaining_patt el in
+                      let t = type_exp el in
+                      (patt, ETriOp (t, TOp_merge, c, el, er))
+                        :: eqs, remaining_patt)
+                    ([], fst eq) l l')
+            end
+          | _ -> [eq])
+        node.n_equations) in
+    Some { node with n_equations = new_equations }
+  in
+  try node_pass aux_linearization_tuples ast with
+  | PassExn err -> (debug err; None)
+
+
+
+(** [pass_linearization_app] makes sure that any argument to a function is
+  * either a variable, or of the form [pre _] (which will be translated as a
+  * variable in the final C code. *)
+let pass_linearization_app verbose debug =
+  let applin_count = ref 0 in (* new variables are called «_applin[varcount]» *)
+  (** [aux_expr] recursively explores the AST in order to find applications, and
+    * adds the requires variables and equations. *)
+  let rec aux_expr vars expr: t_eqlist * t_varlist * t_expression =
+    match expr with
+    | EConst _ | EVar   _ -> [], vars, expr
+    | EMonOp (t, op, expr) ->
+        let eqs, vars, expr = aux_expr vars expr in
+        eqs, vars, EMonOp (t, op, expr)
+    | EBinOp (t, op, e, e') ->
+        let eqs, vars, e = aux_expr vars e in
+        let eqs', vars, e' = aux_expr vars e' in
+        eqs @ eqs', vars, EBinOp (t, op, e, e')
+    | ETriOp (t, op, e, e', e'') ->
+        let eqs, vars, e = aux_expr vars e in
+        let eqs', vars, e' = aux_expr vars e' in
+        let eqs'', vars, e'' = aux_expr vars e'' in
+        eqs @ eqs' @ eqs'', vars, ETriOp (t, op, e, e', e'')
+    | EComp  (t, op, e, e') ->
+        let eqs, vars, e = aux_expr vars e in
+        let eqs', vars, e' = aux_expr vars e' in
+        eqs @ eqs', vars, EComp (t, op, e, e')
+    | EWhen  (t, e, e') ->
+        let eqs, vars, e = aux_expr vars e in
+        let eqs', vars, e' = aux_expr vars e' in
+        eqs @ eqs', vars, EWhen (t, e, e')
+    | EReset (t, e, e') ->
+        let eqs, vars, e = aux_expr vars e in
+        let eqs', vars, e' = aux_expr vars e' in
+        eqs @ eqs', vars, EReset (t, e, e')
+    | ETuple (t, l) ->
+        let eqs, vars, l =
+          List.fold_right
+            (fun e (eqs, vars, l) ->
+              let eqs', vars, e = aux_expr vars e in
+              eqs' @ eqs, vars, (e :: l))
+            l ([], vars, []) in
+        eqs, vars, ETuple (t, l)
+    | EApp   (tout, n, ETuple (tin, l)) ->
+        let eqs, vars, l =
+          List.fold_right
+            (fun e (eqs, vars, l) ->
+              let eqs', vars, e = aux_expr vars e in
+              match e with
+              | EVar _ | EMonOp (_, MOp_pre, _) -> (** No need for a new var. *)
+                  eqs' @ eqs, vars, (e :: l)
+              | _ -> (** Need for a new var. *)
+                  let ty = match type_exp e with
+                           | [ty] -> ty
+                           | _ -> failwith "One should not provide
+                           tuples as arguments to an auxiliary node."
+                           in
+                  let nvar: string = Format.sprintf "_applin%d" !applin_count in
+                  incr applin_count;
+                  let nvar: t_var =
+                    match ty with
+                    | TBool -> BVar nvar
+                    | TInt -> IVar nvar
+                    | TReal -> RVar nvar
+                    in
+                  let neq_patt: t_varlist = ([ty], [nvar]) in
+                  let neq_expr: t_expression = e in
+                  let vars = varlist_concat neq_patt vars in
+                  (neq_patt, neq_expr)::eqs'@eqs, vars, EVar([ty], nvar) :: l)
+            l ([], vars, []) in
+        eqs, vars, EApp (tout, n, ETuple (tin, l))
+    | EApp _ -> failwith "Should not happened (parser)"
+  in
+  (** [aux_linearization_app] applies the previous function to every equation *)
+  let aux_linearization_app node =
+    let new_equations, new_locvars =
+      List.fold_left
+        (fun (eqs, vars) eq ->
+          let eqs', vars, expr = aux_expr vars (snd eq) in
+          (fst eq, expr) :: eqs' @ eqs, vars)
+        ([], node.n_local_vars)
+        node.n_equations
+      in
+    Some { node with n_local_vars = new_locvars; n_equations = new_equations }
+  in
+  node_pass aux_linearization_app
+
+
+
+let pass_ensure_assignment_value verbose debug =
+  let varcount = ref 0 in
+  let rec aux_expr should_be_value vars expr =
+    match expr with
+    | EConst _ | EVar   _ -> [], vars, expr
+    | EMonOp (t, op, e) ->
+        let eqs, vars, e = aux_expr true vars e in
+        eqs, vars, EMonOp (t, op, e)
+    | EBinOp (t, op, e, e') ->
+        let eqs, vars, e = aux_expr true vars e in
+        let eqs', vars, e' = aux_expr true vars e' in
+        eqs @ eqs', vars, EBinOp (t, op, e, e')
+    | ETriOp (t, op, e, e', e'') ->
+        let eqs, vars, e = aux_expr should_be_value vars e in
+        let eqs', vars, e' = aux_expr should_be_value vars e' in
+        let eqs'', vars, e'' = aux_expr should_be_value vars e'' in
+        eqs @ eqs' @ eqs'', vars, ETriOp (t, op, e, e', e'')
+    | EComp  (t, op, e, e') ->
+        let eqs, vars, e = aux_expr true vars e in
+        let eqs', vars, e' = aux_expr true vars e' in
+        eqs @ eqs', vars, EComp (t, op, e, e')
+    | EWhen  (t, e, e') ->
+        let eqs, vars, e = aux_expr should_be_value vars e in
+        let eqs', vars, e' = aux_expr should_be_value vars e' in
+        eqs @ eqs', vars, EWhen (t, e, e')
+    | EReset (t, e, e') ->
+        let eqs, vars, e = aux_expr should_be_value vars e in
+        let eqs', vars, e' = aux_expr should_be_value vars e' in
+        eqs @ eqs', vars, EReset (t, e, e')
+    | ETuple (t, l) ->
+        let eqs, vars, l =
+          List.fold_right
+            (fun e (eqs, vars, l) ->
+              let eqs', vars, e = aux_expr true vars e in
+              eqs' @ eqs, vars, e :: l)
+            l ([], vars, []) in
+        eqs, vars, ETuple (t, l)
+    | EApp   (t, n, e) ->
+        let eqs, vars, e = aux_expr true vars e in
+        if should_be_value
+          then
+            let nvar = Format.sprintf "_assignval%d" !varcount in
+            incr varcount;
+            let nvar: t_var =
+              match t with
+              | [TBool] -> BVar nvar
+              | [TReal] -> RVar nvar
+              | [TInt]  -> IVar nvar
+              | _ ->
+                failwith "An application occurring here should return a single element."
+              in
+            let neq_patt: t_varlist = (t, [nvar]) in
+            let neq_expr: t_expression = EApp (t, n, e) in
+            let vars = varlist_concat neq_patt vars in
+            (neq_patt, neq_expr) :: eqs, vars, EVar (t, nvar)
+          else
+            eqs, vars, EApp (t, n, e)
+  in
+  let aux_ensure_assign_val node =
+    let new_equations, vars =
+      List.fold_left
+        (fun (eqs, vars) eq ->
+          let eqs', vars, expr = aux_expr false vars (snd eq) in
+          (fst eq, expr) :: eqs' @ eqs, vars
+          )
+        ([], node.n_local_vars) node.n_equations
+      in
+    Some { node with n_equations = new_equations; n_local_vars = vars }
+  in
+  node_pass aux_ensure_assign_val
+
+
+
+(** [sanity_pass_assignment_unicity] makes sure that there is at most one
+  * equation defining each variable (and that no equation tries to redefine an
+  * input).
+  *
+  * This is required, since the equations are not ordered in Lustre. *)
+let sanity_pass_assignment_unicity verbose debug : t_nodelist -> t_nodelist option =
+  (** For each node, test the node. *)
   let aux (node: t_node) : t_node option =
     let incr_aux h n =
       match Hashtbl.find_opt h n with
-      | None -> raise (PassExn "todo, should not happened.")
+      | None -> raise (PassExn "should not happened.")
       | Some num -> Hashtbl.replace h n (num + 1)
       in
     let incr_eq h (((_, patt), _): t_equation) =
@@ -171,114 +623,7 @@ let rec tpl debug ((pat, exp): t_equation) =
   | ETuple (_, []) -> []
   | _ -> [(pat, exp)]
 
-let pass_linearization verbose debug main_fn =
-  let node_lin (node: t_node): t_node option =
-    let rec pre_aux_expression vars expr: t_eqlist * t_varlist * t_expression =
-      match expr with
-      | EVar _ -> [], vars, expr
-      | EMonOp (t, op, e) ->
-          begin
-          match op with
-          | MOp_pre ->
-              let eqs, vars, e = pre_aux_expression vars e in
-              let nvar: string = fresh_var_name vars 6 in
-              let nvar = match t with
-                          | [TInt]  -> IVar nvar
-                          | [TBool] -> BVar nvar
-                          | [TReal] -> RVar nvar
-                          | _ -> failwith "Should not happened." in
-              let neq_patt: t_varlist = (t, [nvar]) in
-              let neq_expr: t_expression = e in
-              let vars = varlist_concat (t, [nvar]) vars in
-              (neq_patt, neq_expr) :: eqs, vars, EMonOp (t, MOp_pre, EVar (t, nvar))
-          | _ ->
-              let eqs, vars, e = pre_aux_expression vars e in
-              eqs, vars, EMonOp (t, op, e)
-          end
-      | EBinOp (t, op, e, e') ->
-          let eqs, vars, e = pre_aux_expression vars e in
-          let eqs', vars, e' = pre_aux_expression vars e' in
-          eqs @ eqs', vars, EBinOp (t, op, e, e')
-      | ETriOp (t, op, e, e', e'') ->
-          let eqs, vars, e = pre_aux_expression vars e in
-          let nvar: string = fresh_var_name vars 6 in
-          let nvar: t_var = BVar nvar in
-          let neq_patt: t_varlist = ([TBool], [nvar]) in
-          let neq_expr: t_expression = e in
-          let vars = varlist_concat vars (neq_patt) in
-          let eqs', vars, e' = pre_aux_expression vars e' in
-          let eqs'', vars, e'' = pre_aux_expression vars e'' in
-          (neq_patt, neq_expr) :: eqs @ eqs' @ eqs'', vars, ETriOp (t, op, e, e', e'')
-      | EComp  (t, op, e, e') ->
-          let eqs, vars, e = pre_aux_expression vars e in
-          let eqs', vars, e' = pre_aux_expression vars e' in
-          eqs @ eqs', vars, EComp (t, op, e, e')
-      | EWhen  (t, e, e') ->
-          let eqs, vars, e = pre_aux_expression vars e in
-          let eqs', vars, e' = pre_aux_expression vars e' in
-          eqs @ eqs', vars, EWhen (t, e, e')
-      | EReset (t, e, e') ->
-          let eqs, vars, e = pre_aux_expression vars e in
-          let eqs', vars, e' = pre_aux_expression vars e' in
-          eqs @ eqs', vars, EReset (t, e, e')
-      | EConst _ -> [], vars, expr
-      | ETuple (t, l) ->
-          let eqs, vars, l = List.fold_right
-            (fun e (eqs, vars, l) ->
-              let eqs', vars, e = pre_aux_expression vars e in
-              eqs' @ eqs, vars, (e :: l))
-            l ([], vars, []) in
-          eqs, vars, ETuple (t, l)
-      | EApp   (t, n, e) ->
-          let eqs, vars, e = pre_aux_expression vars e in
-          eqs, vars, EApp (t, n, e)
-      in
-    let rec pre_aux_equation (vars: t_varlist) ((patt, expr): t_equation) =
-      let eqs, vars, expr = pre_aux_expression vars expr in
-      (patt, expr)::eqs, vars
-      in
-    let rec tpl ((pat, exp): t_equation) =
-      match exp with
-      | ETuple (_, hexps :: texps) ->
-          debug "An ETuple has been recognized, inlining...";
-          let p1, p2 =
-            list_select
-              (List.length (type_exp hexps))
-              (snd pat) in
-          let t1 = List.flatten (List.map type_var p1) in
-          let t2 = List.flatten (List.map type_var p2) in
-          ((t1, p1), hexps)
-            :: (tpl ((t2, p2),
-                ETuple (List.flatten (List.map type_exp texps), texps)))
-      | ETuple (_, []) -> []
-      | _ -> [(pat, exp)]
-    in
-    let new_equations = List.flatten
-      (List.map
-        tpl
-        node.n_equations)
-      in
-    let new_equations, new_locvars =
-      List.fold_left
-        (fun (eqs, vars) eq ->
-          let es, vs = pre_aux_equation vars eq in
-          es @ eqs, vs)
-        ([], node.n_local_vars)
-        new_equations
-      in
-    Some
-      {
-        n_name = node.n_name;
-        n_inputs = node.n_inputs;
-        n_outputs = node.n_outputs;
-        n_local_vars = new_locvars;
-        n_equations = new_equations;
-        n_automata = node.n_automata;
-      }
-  in
-  node_pass node_lin
-
-let pass_eq_reordering verbose debug main_fn ast =
+let pass_eq_reordering verbose debug ast =
   let rec pick_equations init_vars eqs remaining_equations =
     match remaining_equations with
     | [] -> Some eqs
@@ -312,7 +657,7 @@ let pass_eq_reordering verbose debug main_fn ast =
   in
   node_pass node_eq_reorganising ast
 
-let pass_typing verbose debug main_fn ast =
+let pass_typing verbose debug ast =
   let htbl = Hashtbl.create (List.length ast) in
   let () = debug "[typing verification]" in
   let () = List.iter
@@ -382,7 +727,7 @@ let pass_typing verbose debug main_fn ast =
           else None
   in aux ast
 
-let check_automata_validity verbos debug main_fn = 
+let check_automata_validity verbos debug = 
   let check_automaton_branch_vars automaton = 
     let (init, states) = automaton in
     let left_side = Hashtbl.create 10 in
@@ -493,7 +838,7 @@ let automaton_translation debug automaton =
   in
 
   let rec translate_var s v explist ty = match explist with
-  | [] -> default_constant ty (* TODO *)
+  | [] -> default_constant ty
   | (state, exp)::q -> 
       ETriOp(Utils.type_exp exp, TOp_if,
         EComp([TBool], COp_eq, 
@@ -539,10 +884,10 @@ let automata_trans_pass debug (node:t_node) : t_node option=
       n_automata = []; (* not needed anymore *)
     }
 
-let automata_translation_pass verbose debug main_fn = 
+let automata_translation_pass verbose debug = 
   node_pass (automata_trans_pass debug)
 
-let clock_unification_pass verbose debug main_fn ast = 
+let clock_unification_pass verbose debug ast = 
 
   let failure str = raise (PassExn ("Failed to unify clocks: "^str)) in
     
@@ -601,8 +946,8 @@ let clock_unification_pass verbose debug main_fn ast =
       | _ -> failure ("Merge format")
     end
   | ETriOp(_, TOp_if, e1, e2, e3) ->
-      let c1 = compute_clock_exp e1
-      and c2 = compute_clock_exp e2
+      let (* Unused: c1 = compute_clock_exp e1
+      and*) c2 = compute_clock_exp e2
       and c3 = compute_clock_exp e3 in
       if c2 <> c3 then
         failure "If clocks"

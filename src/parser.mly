@@ -63,7 +63,7 @@
 
   let make_binop_nonbool e1 e2 op error_msg =
     let t1 = type_exp e1 in let t2 = type_exp e2 in
-    (** e1 and e2 should be nunmbers here.*)
+    (** e1 and e2 should be numbers here.*)
     if list_chk t1 [[TInt]; [TReal]] && list_chk t2 [[TInt]; [TReal]]
       then
         begin
@@ -88,7 +88,7 @@
 
   let make_comp_nonbool e1 e2 op error_msg =
     let t1 = type_exp e1 in let t2 = type_exp e2 in
-    (** e1 and e2 should be nunmbers here.*)
+    (** e1 and e2 should be numbers here.*)
     if list_chk t1 [[TInt]; [TReal]] && list_chk t2 [[TInt]; [TReal]]
       then
         begin
@@ -144,6 +144,7 @@
 
 %token WHEN
 %token RESET
+%token EVERY 
 
 %token IF
 %token THEN
@@ -215,8 +216,8 @@ node_content:
               if vars_distinct e_in e_out (snd $10)
                 then (Hashtbl.add defined_nodes node_name n; n)
                 else raise (MyParsingError
-                            ("There is a conflict between the names of local, input \
-                            or output variables.",
+                            ("There is a conflict between the names of local,\
+                             input or output variables.",
                             current_location()))
           end};
 
@@ -312,33 +313,33 @@ expr:
   | MO_pre expr                        { EMonOp (type_exp $2, MOp_pre, $2) }
   | MINUS expr
       { monop_neg_condition $2 [TBool]
-          "You cannot take the opposite of a boolean expression."
+          "You cannot take the opposite of an expression that is not a number."
           (EMonOp (type_exp $2, MOp_minus, $2)) }
   | PLUS expr
       { monop_neg_condition $2 [TBool]
-          "You cannot take the plus of a boolean expression." $2 }
+          "(+) expects its argument to be a number." $2 }
   /* Binary operators */
   | expr PLUS expr
       { make_binop_nonbool $1 $3 BOp_add
-          "You should know better; addition hates booleans" }
+          "Addition expects both arguments to be (the same kind of) numbers." }
   | expr MINUS expr
       { make_binop_nonbool $1 $3 BOp_sub
-          "You should know better; subtraction hates booleans" }
+          "Substraction expects both arguments to be (the same kind of) numbers." }
   | expr BO_mul expr
       { make_binop_nonbool $1 $3 BOp_mul
-          "You should know better; multiplication hates booleans" }
+          "Multiplication expects both arguments to be (the same kind of) numbers." }
   | expr BO_div expr
       { make_binop_nonbool $1 $3 BOp_div
-          "You should know better; division hates booleans" }
+          "Division expects both arguments to be (the same kind of) numbers." }
   | expr BO_mod expr
       { make_binop_nonbool $1 $3 BOp_mod
-          "You should know better; modulo hates booleans" }
+          "Modulo expects both arguments to be numbers." }
   | expr BO_and expr
       { make_binop_bool $1 $3 BOp_and
-          "You should know better; conjunction hates numbers" }
+          "Conjunction expects both arguments to be booleans." }
   | expr BO_or expr
       { make_binop_bool $1 $3 BOp_or
-          "You should know better; disjunction hates numbers" }
+          "Disjunction expects both arguments to be booleans." }
   | expr BO_arrow expr
       { let e1 = $1 in let t1 = type_exp e1 in
         let e2 = $3 in let t2 = type_exp e2 in
@@ -381,9 +382,9 @@ expr:
          then EWhen (t1, e1, e2)
          else raise (MyParsingError ("The when does not type-check!",
                     current_location())) }
-  | expr RESET expr
-      { let e1 = $1 in let t1 = type_exp e1 in
-        let e2 = $3 in let t2 = type_exp e2 in
+  | RESET expr EVERY expr
+      { let e1 = $2 in let t1 = type_exp e1 in
+        let e2 = $4 in let t2 = type_exp e2 in
         if t2 = [TBool]
          then EReset (t1, e1, e2)
          else raise (MyParsingError ("The reset does not type-check!",

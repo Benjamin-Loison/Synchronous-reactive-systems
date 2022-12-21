@@ -26,6 +26,7 @@
       ("merge", TO_merge);
       ("when", WHEN);
       ("reset", RESET);
+      ("every", EVERY);
       ("pre", MO_pre);
       ("true", CONST_BOOL(true));
       ("false", CONST_BOOL(false));

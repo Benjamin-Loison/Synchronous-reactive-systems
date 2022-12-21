@@ -1,280 +1,324 @@
 open Ast
+open Intermediate_ast
+open Intermediate_utils
+open Cprint
+open Cast
+open Utils
+open Ctranslation
 
-type var_list_delim =
-  | Base
-  | Arg
-  | Dec
 
-let rec pp_varlist var_list_delim fmt : t_varlist -> unit = function
-  | ([], []) -> ()
-  | ([TInt] , IVar h :: []) -> Format.fprintf fmt (
-      match var_list_delim with
-          | Base -> "%s"
-          | Arg -> "int %s"
-          | Dec -> "int %s;") h
-  | ([TReal], RVar h :: []) -> Format.fprintf fmt (
-      match var_list_delim with
-          | Base -> "%s"
-          | Arg -> "float %s"
-          | Dec -> "float %s;") h
-  | ([TBool], BVar h :: []) -> Format.fprintf fmt (
-      match var_list_delim with
-          | Base -> "%s"
-          | Arg -> "bool %s"
-          | Dec -> "bool %s;") h
-  | (TInt :: tl,  IVar h :: h' :: l) ->
-      Format.fprintf fmt (
-          match var_list_delim with
-              | Base -> "%s, %a"
-              | Arg -> "int %s, %a"
-              | Dec -> "int %s;\n\t%a") h (pp_varlist var_list_delim) (tl, h' :: l)
-  | (TBool :: tl, BVar h :: h' :: l) ->
-      Format.fprintf fmt (
-          match var_list_delim with
-              | Base -> "%s, %a"
-              | Arg -> "bool %s, %a"
-              | Dec -> "bool %s;\n\t%a") h (pp_varlist var_list_delim) (tl, h' :: l)
-  | (TReal :: tl, RVar h :: h' :: l) ->
-      Format.fprintf fmt (
-          match var_list_delim with
-              | Base -> "%s, %a"
-              | Arg -> "float %s, %a"
-              | Dec -> "float %s;\n\t%a") h (pp_varlist var_list_delim) (tl, h' :: l)
-  | _ -> raise (MyTypeError "This exception should not have beed be raised.")
 
-let rec pp_retvarlist fmt : t_varlist -> unit = function
-  | ([], []) -> ()
-  | ([TInt] , IVar h :: []) -> Format.fprintf fmt "int"
-  | ([TReal], RVar h :: []) -> Format.fprintf fmt "float"
-  | ([TBool], BVar h :: []) -> Format.fprintf fmt "bool"
-  | (TInt :: tl,  IVar h :: h' :: l) ->
-      Format.fprintf fmt "int, %a" pp_retvarlist (tl, h' :: l)
-  | (TBool :: tl, BVar h :: h' :: l) ->
-      Format.fprintf fmt "float, %a" pp_retvarlist (tl, h' :: l)
-  | (TReal :: tl, RVar h :: h' :: l) ->
-      Format.fprintf fmt "bool, %a" pp_retvarlist (tl, h' :: l)
-  | _ -> raise (MyTypeError "This exception should not have beed be raised.")
+(** [ast_to_intermediate_ast] translates a [t_nodelist] into a [i_nodelist] *)
+let ast_to_intermediate_ast (nodes: t_nodelist) (h: node_states): i_nodelist =
+  let c = ref 1 in
+  let ast_to_intermediate_ast_varlist vl = snd vl in
+  let rec ast_to_intermediate_ast_expr hloc = function
+    | EVar   (_, v) ->
+      begin
+        match Hashtbl.find_opt hloc (Utils.name_of_var v, false) with
+        | None -> IEVar (CVInput (name_of_var v))
+        | Some (s, i) -> IEVar (CVStored (s, i))
+      end
+    | EMonOp (_, MOp_pre, EVar (_, v)) ->
+        let s, i = Hashtbl.find hloc (Utils.name_of_var v, true) in
+        IEVar (CVStored (s, i))
+    | EMonOp (_, op, e) -> IEMonOp (op, ast_to_intermediate_ast_expr hloc e)
+    | EBinOp (_, op, e, e') ->
+       IEBinOp (op, ast_to_intermediate_ast_expr hloc e, ast_to_intermediate_ast_expr hloc e')
+    | ETriOp (_, op, e, e', e'') ->
+        IETriOp
+          (op, ast_to_intermediate_ast_expr hloc e, ast_to_intermediate_ast_expr hloc e', ast_to_intermediate_ast_expr hloc e'')
+    | EComp  (_, op, e, e') ->
+        IEComp (op, ast_to_intermediate_ast_expr hloc e, ast_to_intermediate_ast_expr hloc e')
+    | EWhen  (_, e, e') ->
+        IEWhen (ast_to_intermediate_ast_expr hloc e, ast_to_intermediate_ast_expr hloc e')
+    | EReset  (_, e, e') ->
+        IEReset (ast_to_intermediate_ast_expr hloc e, ast_to_intermediate_ast_expr hloc e')
+    | EConst (_, c) -> IEConst c
+    | ETuple (_, l) -> IETuple (List.map (ast_to_intermediate_ast_expr hloc) l)
+    | EApp   (_, n, e) ->
+      begin
+        let e = ast_to_intermediate_ast_expr hloc e in
+        let res = IEApp (!c, n, e) in
+        let () = incr c in
+        res
+      end
+  in
+  let ast_to_intermediate_ast_eq hloc (patt, expr) : i_equation =
+    (ast_to_intermediate_ast_varlist patt, ast_to_intermediate_ast_expr hloc expr) in
+  List.map
+    begin
+    fun node ->
+      let () = c := 1 in
+      let hloc = (Hashtbl.find h node.n_name).nt_map in
+      {
+        in_name = node.n_name;
+        in_inputs = ast_to_intermediate_ast_varlist node.n_inputs;
+        in_outputs = ast_to_intermediate_ast_varlist node.n_outputs;
+        in_local_vars = ast_to_intermediate_ast_varlist node.n_local_vars;
+        in_equations = List.map (ast_to_intermediate_ast_eq hloc) node.n_equations;
+      }
+    end
+    nodes
 
-let rec pp_prevarlist node_name fmt : t_varlist -> unit = function
-  | ([], []) -> ()
-  | ([TInt] , IVar h :: []) -> Format.fprintf fmt "int pre_%s_%s;" node_name h
-  | ([TReal], RVar h :: []) -> Format.fprintf fmt "float pre_%s_%s;" node_name h
-  | ([TBool], BVar h :: []) -> Format.fprintf fmt "bool pre_%s_%s;" node_name h
-  | (TInt :: tl,  IVar h :: h' :: l) ->
-      Format.fprintf fmt "int pre_%s_%s;\n%a" node_name h (pp_prevarlist node_name) (tl, h' :: l)
-  | (TBool :: tl, BVar h :: h' :: l) ->
-      Format.fprintf fmt "float pre_%s_%s;\n%a" node_name h (pp_prevarlist node_name) (tl, h' :: l)
-  | (TReal :: tl, RVar h :: h' :: l) ->
-      Format.fprintf fmt "bool pre_%s_%s;\n%a" node_name h (pp_prevarlist node_name) (tl, h' :: l)
-  | _ -> raise (MyTypeError "This exception should not have beed be raised.")
+(** The following function defines the [node_states] for the nodes of a program,
+  * and puts them in a hash table. *)
+let make_state_types nodes: node_states =
+  (* Hash table to fill *)
+  let h: (ident, node_state) Hashtbl.t = Hashtbl.create (List.length nodes) in
 
-let rec pp_asnprevarlist node_name fmt : t_varlist -> unit = function
-  | ([], []) -> ()
-  | ([TInt] , IVar h :: []) | ([TReal], RVar h :: []) | ([TBool], BVar h :: []) -> Format.fprintf fmt "\tpre_%s_%s = %s;" node_name h h
-  | (TInt :: tl,  IVar h :: h' :: l) | (TBool :: tl, BVar h :: h' :: l) | (TReal :: tl, RVar h :: h' :: l) ->
-      Format.fprintf fmt "\tpre_%s_%s = %s;\n%a" node_name h h (pp_asnprevarlist node_name) (tl, h' :: l)
-  | _ -> raise (MyTypeError "This exception should not have beed be raised.")
+  (** [one_node node pv ty] computes the number of variables of type [ty] in
+    * [node] and a mapping from the variables of type ([ty] * bool) to int,
+    *   where [pv] is a list of variables used in the pre construct in the
+    *   program. *)
+  let one_node node pv ty =
+    (* variables of type [ty] among output and local variables *)
+    let vars =
+      List.filter (fun v -> type_var v = [ty])
+        (snd (varlist_concat node.n_outputs node.n_local_vars)) in
+    let all_vars =
+      List.filter (fun v -> type_var v = [ty])
+        (snd (varlist_concat (varlist_concat node.n_inputs node.n_outputs) node.n_local_vars)) in
+    let pre_vars =
+      List.filter (fun v -> List.mem v pv) all_vars in
+    let vars = List.map Utils.name_of_var vars in
+    let pre_vars = List.map Utils.name_of_var pre_vars in
+    let nb = (List.length vars) + (List.length pre_vars) in
+    let tyh: (ident * bool, int) Hashtbl.t = Hashtbl.create nb in
+    let i =
+      List.fold_left
+        (fun i v -> let () = Hashtbl.add tyh (v, false) i in i + 1) 0 vars in
+    let _ = 
+      List.fold_left
+        (fun i v -> let () = Hashtbl.add tyh (v, true) i in i + 1) i pre_vars in
+    (nb, tyh)
+  in
 
-let reset_expressions_counter = ref 0;;
-
-let outputs = ref [];;
-
-let pp_expression node_name =
-  let rec pp_expression_aux fmt expression =
-    let rec pp_expression_list fmt exprs =
-      match exprs with
-      | ETuple([], []) -> ()
-      | ETuple (_ :: tt, expr :: exprs) ->
-          Format.fprintf fmt "%a%s%a"
-            pp_expression_aux expr
-            (if (List.length tt > 0) then ", " else "")
-            pp_expression_list (ETuple (tt, exprs))
-      | _ -> raise (MyTypeError "This exception should not have been raised.")
+  (** [find_prevars n] returns the list of variables appearing after a pre in
+    * the node [n].
+    * Note that the only occurrence of pre are of the form pre (var), due to
+    * the linearization pass.
+    *)
+  let find_prevars node =
+    let rec find_prevars_expr = function
+      | EConst _ | EVar _ -> []
+      | EMonOp (_, MOp_pre, EVar (_, v)) -> [v]
+      | EMonOp (_, _, e) -> find_prevars_expr e
+      | ETriOp (_, _, e, e', e'') ->
+          (find_prevars_expr e) @ (find_prevars_expr e') @ (find_prevars_expr e'')
+      | EComp  (_, _, e, e')
+      | EBinOp (_, _, e, e')
+      | EWhen  (_, e, e')
+      | EReset (_, e, e') -> (find_prevars_expr e) @ (find_prevars_expr e')
+      | ETuple (_, l) -> List.flatten (List.map (find_prevars_expr) l)
+      | EApp   (_, _, e) -> find_prevars_expr e
     in
-    match expression with
-    | EWhen (_, e1, e2) ->
-        begin
-          Format.fprintf fmt "%a ? %a : 0"
-            pp_expression_aux e2
-            pp_expression_aux e1
-        end
-    | EReset (_, e1, e2) ->
-        begin
-            incr reset_expressions_counter;
-            (* Use following trick as we can't use `;`:
-               if(((var = val) && false) || condition)
-               is equivalent to an incorrect statement like
-               if({var = val; condition})
-               We also use this trick with the fact that `0` can be interpreted as a `bool`, an `int` and a `float` *)
-            (* could use C macros to simplify the C code *)
-            Format.fprintf fmt "(((tmp_reset[%i] = %a) && false) || init_%s) ? (((init[%i] = tmp_reset[%i]) || true) ? tmp_reset[%i] : 0) : (%a ? init[%i] : tmp_reset[%i])"
-            (!reset_expressions_counter - 1)
-            pp_expression_aux e1
-            node_name
-            (!reset_expressions_counter - 1)
-            (!reset_expressions_counter - 1)
-            (!reset_expressions_counter - 1)
-            pp_expression_aux e2
-            (!reset_expressions_counter - 1)
-            (!reset_expressions_counter - 1)
-        end
-    | EConst (_, c) ->
-        begin match c with
-        | CBool b -> Format.fprintf fmt "%s" (Bool.to_string b)
-        | CInt i ->  Format.fprintf fmt "%i" i
-        | CReal r -> Format.fprintf fmt "%f" r
-        end
-    | EVar (_, IVar v) | EVar (_, BVar v) | EVar (_, RVar v) -> Format.fprintf fmt "%s" v
-    | EMonOp (_, mop, arg) ->
-        begin match mop with
-        | MOp_not ->
-            Format.fprintf fmt "!%a"
-              pp_expression_aux arg
-        | MOp_minus ->
-            Format.fprintf fmt "-%a"
-              pp_expression_aux arg
-        | MOp_pre ->
-            Format.fprintf fmt "pre_%s_%a" node_name
-              pp_expression_aux arg
-        end
-    | EBinOp (_, BOp_arrow, arg, arg') ->
-        Format.fprintf fmt "init_%s ? %a : %a"
-          node_name
-          pp_expression_aux arg
-          pp_expression_aux arg'
-    | EBinOp (_, bop, arg, arg') ->
-        begin
-        let s = match bop with
-        | BOp_add -> " + " | BOp_sub -> " - "
-        | BOp_mul -> " * " | BOp_div -> " / " | BOp_mod -> " % "
-        | BOp_and -> " && " | BOp_or  -> " || " | _ -> "" (* `ocamlc` doesn't detect that `BOp_arrow` can't match here *) in
-        Format.fprintf fmt "%a%s%a"
-          pp_expression_aux arg
-          s
-          pp_expression_aux arg'
-        end
-    | EComp (_, cop, arg, arg') ->
-        begin
-        let s = match cop with
-        | COp_eq  -> " == "
-        | COp_neq -> " != "
-        | COp_le  -> " <= " | COp_lt  -> " < "
-        | COp_ge  -> " >= " | COp_gt  -> " > " in
-        Format.fprintf fmt "%a%s%a"
-          pp_expression_aux arg
-          s
-          pp_expression_aux arg'
-        end
-    | ETriOp (_, top, arg, arg', arg'') ->
-        begin
-            Format.fprintf fmt "%a ? %a : %a"
-              pp_expression_aux arg
-              pp_expression_aux arg'
-              pp_expression_aux arg''
-        end
-    | EApp (_, f, args)  ->
-        Format.fprintf fmt "%s(%a)"
-          f.n_name
-          pp_expression_list args
-    | ETuple _ ->
-        Format.fprintf fmt "%a"
-          pp_expression_list expression;
+    list_remove_duplicates
+      (List.fold_left
+        (fun acc (_, expr) -> (find_prevars_expr expr) @ acc)
+        [] node.n_equations)
+  in
+
+  (** [count_app n] count the number of auxiliary nodes calls in [n] *)
+  let count_app n =
+    let rec count_app_expr = function
+      | EConst _ | EVar _ -> 0
+      | EMonOp (_, _, e) -> count_app_expr e
+      | ETriOp (_, _, e, e', e'') ->
+          (count_app_expr e) + (count_app_expr e') + (count_app_expr e'')
+      | EComp  (_, _, e, e')
+      | EBinOp (_, _, e, e')
+      | EWhen  (_, e, e')
+      | EReset (_, e, e') -> (count_app_expr e) + (count_app_expr e')
+      | ETuple (_, l) ->
+          List.fold_left (fun acc e -> acc + count_app_expr e) 0 l
+      | EApp   (_, _, e) -> 1 + count_app_expr e
     in
-  pp_expression_aux
+    List.fold_left
+      (fun i (_, expr) -> i + count_app_expr expr)
+      0 n.n_equations
+  in
 
-(* deterministic *)
-let nodes_outputs = Hashtbl.create Config.maxvar;;
+  (** [aux] iterates over all nodes of the program to build the required hash
+    * table *)
+  let rec aux nodes =
+    match nodes with
+    | [] -> h
+    | node :: nodes ->
+        begin
+        let h = aux nodes in
+        let node_name = node.n_name in
+        let pv = find_prevars node in
+        let nb_int_vars,  h_int  = one_node node pv TInt in
+        let nb_bool_vars, h_bool = one_node node pv TBool in
+        let nb_real_vars, h_real = one_node node pv TReal in
 
-let prepend_output_aux node_name name =
-    "output_" ^ node_name ^ "_" ^ name
+        (** h_map gathers information from h_* maps above *)
+        let h_map =
+          Hashtbl.create (nb_int_vars + nb_bool_vars + nb_real_vars) in
+        let () =
+          Hashtbl.iter (fun k v -> Hashtbl.add h_map k ("ivars", v)) h_int in
+        let () =
+          Hashtbl.iter (fun k v -> Hashtbl.add h_map k ("bvars", v)) h_bool in
+        let () =
+          Hashtbl.iter (fun k v -> Hashtbl.add h_map k ("rvars", v)) h_real in
 
-let prepend_output output node_name =
-    match output with
-    | BVar name -> BVar (prepend_output_aux node_name name)
-    | IVar name -> IVar (prepend_output_aux node_name name)
-    | RVar name -> RVar (prepend_output_aux node_name name)
+        let node_out_vars = snd node.n_outputs in
+        let h_out = Hashtbl.create (List.length node_out_vars) in
+        let () = List.iteri
+          (fun n (v: t_var) ->
+            match v with
+            | IVar s ->
+                let i = Hashtbl.find h_int (s, false) in
+                Hashtbl.add h_out n ("ivars", i)
+            | BVar s ->
+                let i = Hashtbl.find h_bool (s, false) in
+                Hashtbl.add h_out n ("bvars", i)
+            | RVar s ->
+                let i = Hashtbl.find h_real (s, false) in
+                Hashtbl.add h_out n ("rvars", i))
+          (snd node.n_outputs) in
+        let () = Hashtbl.add h node_name
+          {
+            nt_name = Format.asprintf "t_state_%s" node.n_name;
+            nt_nb_int = nb_int_vars;
+            nt_nb_bool = nb_bool_vars;
+            nt_nb_real = nb_real_vars;
+            nt_map = h_map;
+            nt_output_map = h_out;
+            nt_prevars = pv;
+            nt_count_app = count_app node;
+          } in
+        h
+        end
+    in
+  aux nodes
 
-let rec pp_equations node_name fmt: t_eqlist -> unit = function
+
+
+(** The following C-printer functions are in this file, as they need to work on
+  * the AST and are not simple printers. *)
+
+
+
+(** The following function prints the code to remember previous values of
+  * variables used with the pre construct. *)
+let cp_prevars fmt (node, h) =
+  let node_st = Hashtbl.find h node.in_name in
+  match (Hashtbl.find h node.in_name).nt_prevars with
   | [] -> ()
-  | ((l_types, vars), (EApp (r_types, node, exprs))) :: eqs when l_types <> [] -> Format.fprintf fmt "%a" (pp_equations node_name) ((([], []), (EApp (r_types, node, exprs))) :: ((l_types, vars), (ETuple (fst node.n_outputs, List.map (fun output -> EVar (fst node.n_outputs, prepend_output output node.n_name)) (snd node.n_outputs)))) :: eqs)
-  | (([], []), (ETuple ([], []))) :: eqs -> Format.fprintf fmt "%a" (pp_equations node_name) eqs
-  | ((l_type :: l_types, var :: vars), (ETuple (r_type :: r_types, expr :: exprs))) :: eqs -> Format.fprintf fmt "%a" (pp_equations node_name) ((([l_type], [var]), expr) :: ((l_types, vars), (ETuple (r_types, exprs))) :: eqs)
-  | (([], []), expr) :: eqs ->
-      Format.fprintf fmt "\t%a;\n%a"
-        (pp_expression node_name) expr
-        (pp_equations node_name) eqs
-  | (patt, expr) :: eqs ->
-      Format.fprintf fmt "\t%a = %a;\n%a"
-        (pp_varlist Base) patt
-        (pp_expression node_name) expr
-        (pp_equations node_name) eqs
+  | l ->
+      Format.fprintf fmt
+        "\n\t/* Remember the values used in the [pre] construct */\n";
+      List.iter
+        (fun v -> (** Note that «dst_array = src_array» should hold. *)
+          match Hashtbl.find_opt node_st.nt_map (v, false) with
+          | Some (src_array, src_idx) ->
+            let (dst_array, dst_idx) = Hashtbl.find node_st.nt_map (v, true) in
+            Format.fprintf fmt "\tstate->%s[%d] = state->%s[%d];\n"
+              dst_array dst_idx src_array src_idx
+          | None -> 
+            let (dst_array, dst_idx) = Hashtbl.find node_st.nt_map (v, true) in
+            Format.fprintf fmt "\tstate->%s[%d] = %s;\n"
+              dst_array dst_idx v
+          )
+        (List.map Utils.name_of_var l)
 
-(* By prepending to the `Format.formatter` `fmt` we could just declare these arrays once with a size of the maximum `reset_expressions_counter` *)
-let pp_resvars reset_expressions_counter =
-    (* use the fact that any boolean and any integer can be encoded as a float, concerning integers [-2^(23+1) + 1; 2^(23+1) + 1] are correctly encoded (cf https://stackoverflow.com/a/53254438) *)
-    Format.sprintf "float tmp_reset[%i], init[%i];" reset_expressions_counter reset_expressions_counter
 
-let pp_return node_name fmt outputs =
-    if node_name = "main" then
-    (Format.fprintf fmt "return %a;"
-    (pp_varlist Base) outputs)
-    else
-        Format.fprintf fmt "%s" (String.concat "\n\t" (List.map (fun output -> match output with | BVar name | IVar name | RVar name -> "output_" ^ node_name ^ "_" ^ name ^ " = " ^ name ^ ";") (snd outputs)))
 
-let pp_node fmt node =
-    (* undefined behavior if the initial code uses a variable with name:
-        - `init_{NODE_NAME}`
-        - `tmp_reset_{int}`
-        - `init_{int}`
-        - `pre_{NODE_NAME}_{VARIABLE}`
-        - `output_{NODE_NAME}_{VARIABLE}` *)
-  reset_expressions_counter := 0;
-  let _ = (pp_equations node.n_name) Format.str_formatter node.n_equations in
-  reset_expressions_counter := 0;
-  Format.fprintf fmt "bool init_%s = true;\n\n%a\n\n%a\n\n%a\n\n%s\n\n%s %s(%a)\n{\n\t%a\n\n\t%a\n\n%a\n\n\tinit_%s = false;\n\n%a\n\n%a\n\n%a\n\n\t%a\n}\n"
-    node.n_name
-    (* could avoid declaring unused variables *)
-    (pp_prevarlist node.n_name) node.n_inputs
-    (pp_prevarlist node.n_name) node.n_local_vars
-    (pp_prevarlist node.n_name) node.n_outputs
-    (pp_resvars !reset_expressions_counter)
-    (if node.n_name = "main" then "int" else "void")
-    node.n_name
-    (* could avoid newlines if they aren't used to seperate statements *)
-    (pp_varlist Arg) node.n_inputs
-    (pp_varlist Dec) node.n_local_vars
-    (pp_varlist Dec) node.n_outputs
-    (pp_equations node.n_name) node.n_equations
-    node.n_name
-    (pp_asnprevarlist node.n_name) node.n_inputs
-    (pp_asnprevarlist node.n_name) node.n_local_vars
-    (pp_asnprevarlist node.n_name) node.n_outputs
-    (pp_return node.n_name) node.n_outputs
+(** The following function defines the behaviour to have at the first
+  * execution of a node, namely:
+  *   - initialize the states of auxiliary nodes
+  *)
+let cp_init_aux_nodes fmt (node, h) =
+  let rec aux fmt (node, nst, i) =
+    match find_app_opt node.in_equations i with
+    | None -> () (** All auxiliary nodes have been initialized *)
+    | Some n ->
+      begin
+      Format.fprintf fmt "%a\t\tif(!state->is_reset) {\n\
+          \t\t\tstate->aux_states[%d] = calloc (1, sizeof (%s));\n\
+          \t\t}\n\
+          \t\t((%s*)(state->aux_states[%d]))->is_init = true;\n\
+          \t\t((%s*)(state->aux_states[%d]))->is_reset = state->is_reset;\n"
+        aux (node, nst, i-1)
+        (i-1) (Format.asprintf "t_state_%s" n.n_name)
+        (Format.asprintf "t_state_%s" n.n_name) (i-1)
+        (Format.asprintf "t_state_%s" n.n_name) (i-1)
+      end
+  in
+  let nst = Hashtbl.find h node.in_name in
+  if nst.nt_count_app = 0
+    then ()
+    else begin
+      Format.fprintf fmt "\t/* Initialize the auxiliary nodes */\n\
+          \tif (state->is_init) {\n%a\t}\n\n\n"
+        aux (node, nst, nst.nt_count_app)
+    end
 
-let rec pp_nodes fmt nodes =
+
+
+(** [cp_equations] prints the node equations. *)
+let cp_equations fmt (eqs, hloc, h) =
+  (** [main_block] is modified through some optimization passes, eg:
+    * - merge two CIf blocks using the same condition
+    * - replace [if (! c) { b1 } else { b2 }] by [if(c) { b2 } else { b1 }]
+    *
+    *  These passes are defined in [ctranslation.ml]
+      *)
+  let main_block: c_block =
+    List.map (fun eq -> equation_to_expression (hloc, h, eq)) eqs in
+  let main_block = remove_ifnot main_block in
+  let main_block = merge_neighbour_ifs main_block in
+  Format.fprintf fmt "\t/*Main code :*/\n%a"
+    cp_block (main_block, hloc.nt_map)
+
+(** [cp_node] prints a single node *)
+let cp_node fmt (node, h) =
+  Format.fprintf fmt "%a\n{\n%a%a\n\n\tstate->is_init = false;\n%a}\n"
+    cp_prototype (node, h)
+    cp_init_aux_nodes (node, h)
+    cp_equations (node.in_equations, Hashtbl.find h node.in_name, h)
+    cp_prevars (node, h)
+
+(** [cp_nodes] recursively prints all the nodes of a program. *)
+let rec cp_nodes fmt (nodes, h) =
   match nodes with
   | [] -> ()
   | node :: nodes ->
-    Format.fprintf fmt "%a\n%a" pp_node node pp_nodes nodes
+      Format.fprintf fmt "%a\n%a"
+        cp_node (node, h)
+        cp_nodes (nodes, h)
 
-let rec load_outputs_from_vars node_name n_outputs =
-  match n_outputs with
-  | [] -> ()
-  | BVar n_output :: n_outputs
-  | IVar n_output :: n_outputs
-  | RVar n_output :: n_outputs ->
-    (if (not (List.mem n_output !outputs)) then outputs := (node_name ^ "_" ^ n_output) :: !outputs;); load_outputs_from_vars node_name n_outputs
 
-let rec load_outputs_from_nodes nodes =
-  match nodes with
-  | [] -> ()
-  | node :: nodes ->
-          (if node.n_name <> "main" then (load_outputs_from_vars node.n_name (snd node.n_outputs)); Hashtbl.add nodes_outputs node.n_name (snd node.n_outputs)); load_outputs_from_nodes nodes
 
-let ast_to_c fmt prog =
-  load_outputs_from_nodes prog;
-  Format.fprintf fmt
-    (* could verify that uses, possibly indirectly (cf `->` implementation), a boolean in the ast before including `<stdbool.h>` *)
-    "#include <stdbool.h>\n\n%s\n\n%a"
-    ("float " ^ (String.concat ", " (List.map (fun output -> "output_" ^ output) !outputs)) ^ ";") pp_nodes prog
+(** [dump_var_locations] dumps the internal tables to map the program variable
+  * (after all the passes) to their location in the final C program. *)
+let dump_var_locations fmt (st: node_states) =
+  Format.fprintf fmt "Tables mapping the AST variables to the C variables:\n";
+  Hashtbl.iter
+    (fun n st ->
+      Format.fprintf fmt "  ∗ NODE: %s\n" n;
+    Hashtbl.iter
+    (fun (s, (ispre: bool)) ((arr: string), (idx: int)) ->
+      match ispre with
+      | true -> Format.fprintf fmt "    PRE Variable %s stored as %s[%d]\n" s arr idx
+      | false -> Format.fprintf fmt "        Variable %s stored as %s[%d]\n" s arr idx)
+    st.nt_map)
+    st
+
+
+
+(** main function that prints a C-code from a term of type [t_nodelist]. *)
+let ast_to_c fmt verbose debug prog =
+  verbose "Computation of the node_states";
+  let prog_st_types = make_state_types prog in
+  debug (Format.asprintf "%a" dump_var_locations prog_st_types);
+  let iprog: i_nodelist = ast_to_intermediate_ast prog prog_st_types in
+  Format.fprintf fmt "%a\n\n%a\n\n%a\n\n/* Nodes: */\n%a%a\n"
+    cp_includes (Config.c_includes)
+    cp_state_types prog_st_types
+    cp_state_frees (iprog, prog_st_types)
+    cp_nodes (iprog, prog_st_types)
+    cp_main_fn (prog, prog_st_types)
 

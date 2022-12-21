@@ -9,6 +9,13 @@ let rec list_select n = function
           let p1, p2 = list_select (n-1) t in
           h :: p1, p2
 
+let rec list_remove_duplicates l =
+  match l with
+  | [] -> []
+  | h :: t ->
+      let t = list_remove_duplicates t in
+      if List.mem h t then t else h :: t
+
 let rec list_map_option (f: 'a -> 'b option) (l: 'a list) : 'b list option =
   List.fold_right (fun elt acc ->
     match acc, f elt with
@@ -96,4 +103,10 @@ let rec vars_of_expr (expr: t_expression) : ident list =
 
 let rec varlist_concat (l1: t_varlist) (l2: t_varlist): t_varlist =
   (fst l1 @ fst l2, snd l1 @ snd l2)
+
+let split_patt (patt: t_varlist) (e: t_expression): t_varlist * t_varlist =
+  let pl, pr = list_select (List.length (type_exp e)) (snd patt) in
+  let tl = List.flatten (List.map type_var pl) in
+  let tr = List.flatten (List.map type_var pr) in
+  (tl, pl), (tr, pr)
 

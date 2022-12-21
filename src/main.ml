@@ -9,24 +9,46 @@ let print_debug d s =
 let print_verbose v s =
   if v then Format.printf "\x1b[33;01;04mStatus:\x1b[0m %s\n" s else ()
 
-let exec_passes ast main_fn verbose debug passes f =
+
+
+(** [exec_passes] executes the passes on the parsed typed-AST.
+  * A pass should return [Some program] in case of a success, and [None]
+  * otherwise.
+  *
+  * The function [exec_passes] returns the optionnal program returned by the
+  * last pass.
+  *
+  * A pass should never be interrupted by an exception. Nevertheless, we make
+  * sure that no pass raise one. *)
+let exec_passes ast verbose debug passes f =
   let rec aux ast = function
     | [] ->  f ast
     | (n, p) :: passes ->
         verbose (Format.asprintf "Executing pass %s:\n" n);
-        match p verbose debug main_fn ast with
-        | None -> (exit_error ("Error while in the pass "^n^".\n"); exit 0)
-        | Some ast -> (
-        debug (Format.asprintf "Current AST (after %s):\n%a\n" n Pp.pp_ast ast);
-        aux ast passes)
+        try
+        begin
+          match p verbose debug ast with
+          | None -> (exit_error ("Error while in the pass "^n^".\n"); exit 0)
+          | Some ast -> (
+            debug
+              (Format.asprintf
+                "Current AST (after %s):\n%a\n" n Lustre_pp.pp_ast ast);
+            aux ast passes)
+        end with
+        | _ -> failwith ("The pass "^n^" should have caught me!")
   in
   aux ast passes
 
 
+
 let _ =
   (** Usage and argument parsing. *)
-  let default_passes = ["automata_validity" ;"automata_translation"; "linearization"; "pre2vars"; "equations_ordering"; "clock_unification"] in
-  let sanity_passes = ["chkvar_init_unicity"; "check_typing"] in
+  let default_passes =
+    ["linearization_reset"; "remove_if";
+      "linearization_pre"; "linearization_tuples"; "linearization_app";
+      "ensure_assign_val";
+      "equations_ordering"] in
+  let sanity_passes = ["sanity_pass_assignment_unicity"; "check_typing"] in
   let usage_msg =
     "Usage: main [-passes p1,...,pn] [-ast] [-verbose] [-debug] \
       [-o output_file] [-m main_function] source_file\n" in
@@ -34,7 +56,6 @@ let _ =
   let debug = ref false in
   let ppast = ref false in
   let nopopt = ref false in
-  let simopt = ref false in
   let passes = ref [] in
   let source_file = ref "" in
   let testopt = ref false in
@@ -51,7 +72,6 @@ let _ =
       ("-debug", Arg.Set debug, "Output a lot of debug information");
       ("-p", Arg.String (fun s -> passes := s :: !passes),
             "Add a pass to the compilation process");
-      ("-sim", Arg.Set simopt, "Simulate the main node");
       ("-o", Arg.Set_string output_file, "Output file (defaults to [out.c])");
     ] in
   Arg.parse speclist anon_fun usage_msg ;
@@ -59,17 +79,20 @@ let _ =
   if !passes = [] then passes := default_passes;
   let print_verbose = print_verbose !verbose in
   let print_debug = print_debug !debug in
-  let main_fn = "main" in
 
   (** Definition of the passes table *)
   let passes_table  = Hashtbl.create 100 in
   List.iter (fun (s, k) -> Hashtbl.add passes_table s k)
     [
-      ("pre2vars", Passes.pre2vars);
-      ("chkvar_init_unicity", Passes.chkvar_init_unicity);
+      ("remove_if", Passes.pass_if_removal);
+      ("linearization_tuples", Passes.pass_linearization_tuples);
+      ("linearization_app", Passes.pass_linearization_app);
+      ("linearization_pre", Passes.pass_linearization_pre);
+      ("ensure_assign_val", Passes.pass_ensure_assignment_value);
+      ("linearization_reset", Passes.pass_linearization_reset);
+      ("sanity_pass_assignment_unicity", Passes.sanity_pass_assignment_unicity);
       ("automata_translation", Passes.automata_translation_pass);
       ("automata_validity", Passes.check_automata_validity);
-      ("linearization", Passes.pass_linearization);
       ("equations_ordering", Passes.pass_eq_reordering);
       ("check_typing", Passes.pass_typing);
       ("clock_unification", Passes.clock_unification_pass);
@@ -93,7 +116,7 @@ let _ =
       begin
         close_in_noerr inchan;
         Format.printf "Syntax error at %a: %s\n\n"
-          Pp.pp_loc (l, !source_file) s;
+          Lustre_pp.pp_loc (l, !source_file) s;
         exit 0
       end
     | Parsing.Parse_error ->
@@ -101,11 +124,16 @@ let _ =
         close_in_noerr inchan;
         Parsing.(
         Format.printf "Syntax error at %a\n\n"
-          Pp.pp_loc ((symbol_start_pos (), symbol_end_pos()), !source_file));
+          Lustre_pp.pp_loc ((symbol_start_pos (), symbol_end_pos()), !source_file));
         exit 0
       end
     in
 
+  (** Computes the list of passes to execute. If the [-test] flag is set, all
+    * sanity passes (ie. passes which do not modify the AST, but ensure its
+    * validity) are re-run after any other pass.
+    *
+    * Note: the sanity passes are always executed before any other. *)
   let passes =
     List.map
       (fun (pass: string) -> (pass,
@@ -121,26 +149,21 @@ let _ =
     in
 
   print_debug (Format.asprintf "Initial AST (before executing any passes):\n%a"
-                Pp.pp_ast ast) ;
-  exec_passes ast main_fn print_verbose print_debug passes
-    begin
-    if !simopt
-      then Simulation.simulate main_fn
-      else
-        begin
-        if !ppast
-          then (Format.printf "%a" Pp.pp_ast)
-          else (
-            if !nopopt
-              then (fun _ -> ())
-              else
-              (
-                  let oc = open_out !output_file in
-                  let fmt = Format.make_formatter
-                        (Stdlib.output_substring oc)
-                        (fun () -> Stdlib.flush oc) in
-                  Format.fprintf fmt "%a" Ast_to_c.ast_to_c);
-              )
-        end
-    end
+                Lustre_pp.pp_ast ast) ;
+  exec_passes ast print_verbose print_debug passes
+  begin
+  if !ppast
+    then (Format.printf "%a" Lustre_pp.pp_ast)
+    else (
+      if !nopopt
+        then (fun _ -> ())
+        else
+        (
+            let oc = open_out !output_file in
+            let fmt = Format.make_formatter
+                  (Stdlib.output_substring oc)
+                  (fun () -> Stdlib.flush oc) in
+            Ast_to_c.ast_to_c fmt print_verbose print_debug);
+        )
+  end
 

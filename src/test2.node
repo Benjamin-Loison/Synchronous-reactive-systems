@@ -1,13 +1,15 @@
-node main (i: int) returns (o1: int);
+node aux (i: int) returns (a, b: int);
 let
-    o1 = 10 -> pre (20 -> 30);
+  a = 1 -> pre i;
+  b = 2 * i -> (3 * pre i);
 tel
 
-node flipflop(i: int) returns (z: int);
-var x, y: int; c: bool;
+node n (i: int) returns (o1, o2: int);
+var u1, u2, t1, t2: int; c: bool;
 let
-	c = true fby (not c);
-	x = 1 on c;
-	y = 2 on (not c);
-	z = merge c x y;
+  c = true -> not pre c;
+  (t1, t2) = aux (i) when c;
+  (u1, u2) = aux (i) when (not c);
+  o1 = merge c t1 u1;
+  o2 = merge c t2 u2;
 tel
