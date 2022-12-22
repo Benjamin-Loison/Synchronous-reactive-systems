@@ -429,7 +429,12 @@ let cp_main_fn fmt (prog, sts) =
         \tstate.is_init = true;\n\
         \tstate.is_reset = false;\n\
         \twhile(true) {\n\
-          \t\tscanf(\"%%s\", _buffer);\n\
+          \t\tfor(int idx = 0; idx < 1024; idx++) {\n\
+          \t\t\tif(idx == 1023 || (_buffer[idx] = getchar()) == '\\n') {\n\
+          \t\t\t\t_buffer[idx] = '\\0';\n\
+          \t\t\t\tbreak;\n\
+          \t\t\t}\n\
+          \t\t}\n\
           \t\tif(!strcmp(_buffer, \"exit\")) { break; }\n\
           \t\tsscanf(_buffer, %a);\n%a\
           \t\tfn_main(&state, %a);\n\
