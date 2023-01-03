@@ -124,7 +124,7 @@ let cp_state_frees fmt (iprog, sts) =
 
 
 let cp_var' fmt = function
-  | CVStored (arr, idx) -> Format.fprintf fmt "state->%s[%d]" arr idx
+  | CVStored (arr, idx) -> Format.fprintf fmt "_state->%s[%d]" arr idx
   | CVInput s -> Format.fprintf fmt "%s" s
 
 let cp_var fmt = function
@@ -170,7 +170,7 @@ let cp_prototype fmt (node, h): unit =
   | None -> failwith "This should not happened!"
   | Some nst ->
       begin
-        Format.fprintf fmt "void fn_%s (%s *state, %a)"
+        Format.fprintf fmt "void fn_%s (%s *_state, %a)"
           node.in_name
           nst.nt_name
           cp_varlist node.in_inputs
@@ -211,7 +211,7 @@ let rec cp_value fmt (value, (hloc: (ident * bool, string * int) Hashtbl.t)) =
   in
   match value with
   | CVariable (CVInput s) -> Format.fprintf fmt "%s" s
-  | CVariable (CVStored (arr, idx)) -> Format.fprintf fmt "state->%s[%d]" arr idx
+  | CVariable (CVStored (arr, idx)) -> Format.fprintf fmt "_state->%s[%d]" arr idx
   | CConst (CInt i) -> Format.fprintf fmt "%d" i
   | CConst (CBool b) -> Format.fprintf fmt "%s" (Bool.to_string b)
   | CConst (CReal r) -> Format.fprintf fmt "%f" r
@@ -227,9 +227,9 @@ let rec cp_value fmt (value, (hloc: (ident * bool, string * int) Hashtbl.t)) =
                       end
                     | CVInput n -> n) in
       let (arr, idx) = Hashtbl.find hloc (varname, true) in
-      Format.fprintf fmt "state->%s[%d]" arr idx
+      Format.fprintf fmt "_state->%s[%d]" arr idx
   | CBinOp (BOp_arrow, v, v') ->
-      Format.fprintf fmt "(state->is_init ? (%a) : (%a))"
+      Format.fprintf fmt "(_state->is_init ? (%a) : (%a))"
         cp_value (v, hloc) cp_value (v', hloc)
   | CBinOp (op, v, v') ->
       Format.fprintf fmt "(%a) %s (%a)"
@@ -256,7 +256,7 @@ and cp_expression fmt (expr, hloc) =
   match expr with
   | CAssign (CVStored (arr, idx), value) ->
     begin
-      Format.fprintf fmt "%sstate->%s[%d] = %a;\n"
+      Format.fprintf fmt "%s_state->%s[%d] = %a;\n"
         prefix arr idx cp_value (value, hloc)
     end
   | CAssign (CVInput _, _) -> failwith "never assign an input."
@@ -270,14 +270,14 @@ and cp_expression fmt (expr, hloc) =
       let h_out = aux_node_st.nt_output_map in
       Format.fprintf fmt "%sfn_%s(%s, %a);\n"
         prefix fn
-        (Format.asprintf "state->aux_states[%d]" (nb-1))
+        (Format.asprintf "_state->aux_states[%d]" (nb-1))
         cp_varlist' argl;
       let _ = List.fold_left
         (fun i var ->
           match var with
           | CVStored (arr, idx) ->
             let (arr', idx') = Hashtbl.find h_out i in
-            Format.fprintf fmt "%sstate->%s[%d] = ((%s*)(state->aux_states[%d]))->%s[%d];\n"
+            Format.fprintf fmt "%s_state->%s[%d] = ((%s*)(_state->aux_states[%d]))->%s[%d];\n"
               prefix arr idx
               aux_node_st.nt_name (nb-1)
               arr' idx';
@@ -288,8 +288,8 @@ and cp_expression fmt (expr, hloc) =
   | CReset (node_name, i, v, b) ->
     begin
       Format.fprintf fmt "\tif (%a) {\n\
-        \t\t((t_state_%s*)(state->aux_states[%d]))->is_init = true;\n\
-        \t\t((t_state_%s*)(state->aux_states[%d]))->is_reset = true;\n\
+        \t\t((t_state_%s*)(_state->aux_states[%d]))->is_init = true;\n\
+        \t\t((t_state_%s*)(_state->aux_states[%d]))->is_reset = true;\n\
         \t}\n\
         %a\n"
         cp_value (v, hloc)
@@ -397,7 +397,7 @@ let cp_main_fn fmt (prog, sts) =
       match Hashtbl.find_opt h i with
       | None -> ()
       | Some (s, i) ->
-        Format.fprintf fmt ", state.%s[%d]%a"
+        Format.fprintf fmt ", _state.%s[%d]%a"
           s i cp_printf_arg (h, i+1)
     in
     Format.fprintf fmt "\"%a\\n\"%a"
@@ -417,7 +417,7 @@ let cp_main_fn fmt (prog, sts) =
     let main_st = Hashtbl.find  sts "main" in
     if main_st.nt_count_app = 0
       then ()
-      else Format.fprintf fmt "\tfree_state_main(&state);\n"
+      else Format.fprintf fmt "\tfree_state_main(&_state);\n"
   in
   match List.find_opt (fun n -> n.n_name = "main") prog with
   | None -> ()
@@ -425,9 +425,9 @@ let cp_main_fn fmt (prog, sts) =
     Format.fprintf fmt "int main (int argc, char **argv)\n\
       {\n%a\n\
         \tchar buffer[BUFFER_SIZE];\n\
-        \tt_state_main state;\n\
-        \tstate.is_init = true;\n\
-        \tstate.is_reset = false;\n\
+        \tt_state_main _state;\n\
+        \t_state.is_init = true;\n\
+        \t_state.is_reset = false;\n\
         \twhile(true) {\n\
           \t\tprintf(\"input: \");\n\
           \t\tfor(unsigned short idx = 0; idx < BUFFER_SIZE; idx++) {\n\
@@ -438,7 +438,7 @@ let cp_main_fn fmt (prog, sts) =
           \t\t}\n\
           \t\tif(!strcmp(buffer, \"exit\")) { break; }\n\
           \t\tsscanf(buffer, %a);\n%a\
-          \t\tfn_main(&state, %a);\n\
+          \t\tfn_main(&_state, %a);\n\
           \t\tprintf(\"output: \");\n\
           \t\tprintf(%a);\n\
           \t\tprintf(\"\\n\");\n\

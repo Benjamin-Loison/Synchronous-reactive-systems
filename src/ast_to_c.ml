@@ -215,11 +215,11 @@ let cp_prevars fmt (node, h) =
           match Hashtbl.find_opt node_st.nt_map (v, false) with
           | Some (src_array, src_idx) ->
             let (dst_array, dst_idx) = Hashtbl.find node_st.nt_map (v, true) in
-            Format.fprintf fmt "\tstate->%s[%d] = state->%s[%d];\n"
+            Format.fprintf fmt "\t_state->%s[%d] = _state->%s[%d];\n"
               dst_array dst_idx src_array src_idx
           | None -> 
             let (dst_array, dst_idx) = Hashtbl.find node_st.nt_map (v, true) in
-            Format.fprintf fmt "\tstate->%s[%d] = %s;\n"
+            Format.fprintf fmt "\t_state->%s[%d] = %s;\n"
               dst_array dst_idx v
           )
         (List.map Utils.name_of_var l)
@@ -236,11 +236,11 @@ let cp_init_aux_nodes fmt (node, h) =
     | None -> () (** All auxiliary nodes have been initialized *)
     | Some n ->
       begin
-      Format.fprintf fmt "%a\t\tif(!state->is_reset) {\n\
-          \t\t\tstate->aux_states[%d] = calloc (1, sizeof (%s));\n\
+      Format.fprintf fmt "%a\t\tif(!_state->is_reset) {\n\
+          \t\t\t_state->aux_states[%d] = calloc (1, sizeof (%s));\n\
           \t\t}\n\
-          \t\t((%s*)(state->aux_states[%d]))->is_init = true;\n\
-          \t\t((%s*)(state->aux_states[%d]))->is_reset = state->is_reset;\n"
+          \t\t((%s*)(_state->aux_states[%d]))->is_init = true;\n\
+          \t\t((%s*)(_state->aux_states[%d]))->is_reset = _state->is_reset;\n"
         aux (node, nst, i-1)
         (i-1) (Format.asprintf "t_state_%s" n.n_name)
         (Format.asprintf "t_state_%s" n.n_name) (i-1)
@@ -252,7 +252,7 @@ let cp_init_aux_nodes fmt (node, h) =
     then ()
     else begin
       Format.fprintf fmt "\t/* Initialize the auxiliary nodes */\n\
-          \tif (state->is_init) {\n%a\t}\n\n\n"
+          \tif (_state->is_init) {\n%a\t}\n\n\n"
         aux (node, nst, nst.nt_count_app)
     end
 
@@ -275,7 +275,7 @@ let cp_equations fmt (eqs, hloc, h) =
 
 (** [cp_node] prints a single node *)
 let cp_node fmt (node, h) =
-  Format.fprintf fmt "%a\n{\n%a%a\n\n\tstate->is_init = false;\n%a}\n"
+  Format.fprintf fmt "%a\n{\n%a%a\n\n\t_state->is_init = false;\n%a}\n"
     cp_prototype (node, h)
     cp_init_aux_nodes (node, h)
     cp_equations (node.in_equations, Hashtbl.find h node.in_name, h)
