@@ -362,7 +362,7 @@ let cp_main_fn fmt (prog, sts) =
           else Format.fprintf fmt "%s%a")
         (match h with
         | IVar _ -> "%d"
-        | BVar _ -> "%hd"
+        | BVar _ -> "%c"
         | RVar _ -> "%lf")
         cp_scanf_str (true, t)
     in
