@@ -1,0 +1,14 @@
+node test (i: int) returns (o: int);
+var x, y: int;
+let
+    x = (1 / i) when (i <> 0);
+    y = 0 when (not (i <> 0));
+    o = merge (i <> 0) x y;
+tel
+
+node main (i: int) returns (o: int);
+var garbage: int;
+let
+    garbage = test(0);
+    o = test(1);
+tel

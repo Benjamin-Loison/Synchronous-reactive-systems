@@ -1,0 +1,4 @@
+node main (i: int) returns (o: int);
+let
+    o = 1 -> 2 -> 3;
+tel

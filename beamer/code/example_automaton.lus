@@ -1,12 +1,12 @@
 node auto (i: int) returns (o : int);
-var x, y:int;
+var x, y: int;
 let
 	automaton
 	| Incr -> do (o,x) = (0 fby o + 1, 2); until o < 5 then Decr
 	| Decr -> do (o,x) = diagonal_int(0 fby o); until o > 3 then Incr
 tel
 
-node auto (i: int) returns (o: int);
+node auto (i: int) returns (o : int);
 var x, y: int;
 let
 	_s1 = 1 -> (if _s = 1 and o < 5 then 2 else if _s = 2 and o > then 1 else 1);
@@ -14,7 +14,7 @@ let
 tel
 
 node auto (i: int) returns (o : int);
-var x, y:int;
+var x, y: int;
 let
 	automaton
 	| Incr -> do (o,x) = (0 fby o + 1, 2); until o < 5 then Decr

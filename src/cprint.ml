@@ -362,7 +362,7 @@ let cp_main_fn fmt (prog, sts) =
           else Format.fprintf fmt "%s%a")
         (match h with
         | IVar _ -> "%d"
-        | BVar _ -> "%c"
+        | BVar _ -> "%hd"
         | RVar _ -> "%lf")
         cp_scanf_str (true, t)
     in
@@ -389,7 +389,7 @@ let cp_main_fn fmt (prog, sts) =
           else Format.fprintf fmt "%s%a")
         (match h with
         | IVar _ -> "%d"
-        | BVar _ -> "%c"
+        | BVar _ -> "%hd"
         | RVar _ -> "%f")
         cp_printf_str (true, t)
     in
@@ -424,13 +424,15 @@ let cp_main_fn fmt (prog, sts) =
   | Some node ->
     Format.fprintf fmt "int main (int argc, char **argv)\n\
       {\n%a\n\
-        \tchar _buffer[1024];\n\
+        \t#define BUFFER_SIZE 1024\n\
+        \tchar _buffer[BUFFER_SIZE];\n\
         \tt_state_main state;\n\
         \tstate.is_init = true;\n\
         \tstate.is_reset = false;\n\
         \twhile(true) {\n\
-          \t\tfor(int idx = 0; idx < 1024; idx++) {\n\
-          \t\t\tif(idx == 1023 || (_buffer[idx] = getchar()) == '\\n') {\n\
+          \t\tprintf(\"input: \");\n\
+          \t\tfor(unsigned short idx = 0; idx < BUFFER_SIZE; idx++) {\n\
+          \t\t\tif(idx == (BUFFER_SIZE - 1) || (_buffer[idx] = getchar()) == '\\n') {\n\
           \t\t\t\t_buffer[idx] = '\\0';\n\
           \t\t\t\tbreak;\n\
           \t\t\t}\n\
@@ -438,7 +440,9 @@ let cp_main_fn fmt (prog, sts) =
           \t\tif(!strcmp(_buffer, \"exit\")) { break; }\n\
           \t\tsscanf(_buffer, %a);\n%a\
           \t\tfn_main(&state, %a);\n\
+          \t\tprintf(\"output: \");\n\
           \t\tprintf(%a);\n\
+          \t\tprintf(\"\\n\");\n\
         \t}\n\
         %a\treturn EXIT_SUCCESS;\n\
       }\n"

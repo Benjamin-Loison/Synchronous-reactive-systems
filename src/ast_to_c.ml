@@ -270,7 +270,7 @@ let cp_equations fmt (eqs, hloc, h) =
     List.map (fun eq -> equation_to_expression (hloc, h, eq)) eqs in
   let main_block = remove_ifnot main_block in
   let main_block = merge_neighbour_ifs main_block in
-  Format.fprintf fmt "\t/*Main code :*/\n%a"
+  Format.fprintf fmt "\t/*Main code:*/\n%a"
     cp_block (main_block, hloc.nt_map)
 
 (** [cp_node] prints a single node *)

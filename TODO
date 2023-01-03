@@ -1,8 +1,5 @@
 # Parseur
 
- - tests divers et variés
- - support pour un point-virgule optionel en fin de nœud
- - ajout des flottants (= réels)
- - ajout de pre, ->, fby, automates
+ - ajustement des automates
 
 # ...

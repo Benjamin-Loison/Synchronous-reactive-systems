@@ -1,0 +1,15 @@
+-- counter of `top`s until `reset` condition holds
+node counting (tick: bool) returns (o: int);
+var v: int;
+let
+  o = v -> (pre o) + v;
+  v = if tick then 1 else 0
+tel
+
+node main (i: int) returns (o: int);
+let
+  -- 0 means no `top` and no `reset`
+  -- 1 means `top`
+  -- 2 means `reset`
+  o = reset counting(i = 1) every (i = 2);
+tel

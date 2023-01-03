@@ -1,0 +1,16 @@
+-- count the number of top between two tick
+node counting (tick:bool; top:bool)
+returns (o: int);
+var v, o1: int;
+let o = if tick then v else 0 -> (pre o) + v;
+	v = if top then 1 else 0
+tel;
+
+node main (i: int)
+returns (o: int);
+let
+    -- 0 means no `tick` and no `top`
+    -- 1 means `tick`
+    -- 2 means `top`
+    o = counting(i = 1, i = 2)
+tel;
