@@ -424,21 +424,20 @@ let cp_main_fn fmt (prog, sts) =
   | Some node ->
     Format.fprintf fmt "int main (int argc, char **argv)\n\
       {\n%a\n\
-        \t#define BUFFER_SIZE 1024\n\
-        \tchar _buffer[BUFFER_SIZE];\n\
+        \tchar buffer[BUFFER_SIZE];\n\
         \tt_state_main state;\n\
         \tstate.is_init = true;\n\
         \tstate.is_reset = false;\n\
         \twhile(true) {\n\
           \t\tprintf(\"input: \");\n\
           \t\tfor(unsigned short idx = 0; idx < BUFFER_SIZE; idx++) {\n\
-          \t\t\tif(idx == (BUFFER_SIZE - 1) || (_buffer[idx] = getchar()) == '\\n') {\n\
-          \t\t\t\t_buffer[idx] = '\\0';\n\
+          \t\t\tif(idx == (BUFFER_SIZE - 1) || (buffer[idx] = getchar()) == '\\n') {\n\
+          \t\t\t\tbuffer[idx] = '\\0';\n\
           \t\t\t\tbreak;\n\
           \t\t\t}\n\
           \t\t}\n\
-          \t\tif(!strcmp(_buffer, \"exit\")) { break; }\n\
-          \t\tsscanf(_buffer, %a);\n%a\
+          \t\tif(!strcmp(buffer, \"exit\")) { break; }\n\
+          \t\tsscanf(buffer, %a);\n%a\
           \t\tfn_main(&state, %a);\n\
           \t\tprintf(\"output: \");\n\
           \t\tprintf(%a);\n\

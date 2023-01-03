@@ -3,7 +3,7 @@ node counting (tick:bool; top:bool)
 returns (o: int);
 var v, o1: int;
 let o = if tick then v else 0 -> (pre o) + v;
-	v = if top then 1 else 0
+    v = if top then 1 else 0
 tel;
 
 node main (i: int)

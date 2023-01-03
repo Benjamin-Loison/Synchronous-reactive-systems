@@ -1,6 +1,6 @@
 node diagonal_int (i: int) returns (o1, o2 : int);
 let
-	(o1, o2) = (i, i);
+    (o1, o2) = (i, i);
 tel
 
 node main (i: int) returns (o1, o2, o3, o4: int);

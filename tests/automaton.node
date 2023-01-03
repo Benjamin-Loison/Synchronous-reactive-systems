@@ -1,21 +1,21 @@
 node diagonal_int (i: int) returns (o1, o2 : int);
 let
-	(o1, o2) = (i, i);
+    (o1, o2) = (i, i);
 tel
 
 node undiag_test (i: int) returns (o : bool);
 var l1, l2: int; l3: int;
 let
-	l3 = (pre (1)) -> 0;
-	(l1, l2) = diagonal_int(i);
-	o = (not (not (l1 = l2))) and (l1 = l2) and true;
+    l3 = (pre (1)) -> 0;
+    (l1, l2) = diagonal_int(i);
+    o = (not (not (l1 = l2))) and (l1 = l2) and true;
 tel
 
 node auto (i: int) returns (o : int);
 var x, y:int;
 let
-	automaton
-	| Incr -> do (o,x) = (0 fby o + 1, 2); done
-	| Decr -> do (o,x) = diagonal_int(0 fby o); done
+    automaton
+    | Incr -> do (o,x) = (0 fby o + 1, 2); done
+    | Decr -> do (o,x) = diagonal_int(0 fby o); done
 tel
 
