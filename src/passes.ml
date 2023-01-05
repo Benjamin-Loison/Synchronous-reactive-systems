@@ -147,6 +147,7 @@ let pass_if_removal verbose debug =
   node_pass aux_if_removal
 
 
+
 (** [pass_linearization_reset] makes sure that all reset constructs in the program
   * are applied to functions.
   * This is required, since the reset construct is translated into resetting the
@@ -213,6 +214,7 @@ let pass_linearization_reset verbose debug =
     Some { node with n_local_vars = new_locvars; n_equations = new_equations }
   in
   node_pass node_lin
+
 
 
 (** [pass_linearization_pre] makes sure that all pre constructs in the program
@@ -623,28 +625,45 @@ let rec tpl debug ((pat, exp): t_equation) =
   | ETuple (_, []) -> []
   | _ -> [(pat, exp)]
 
+
+
+(** [pass_eq_reordering] orders the equation such that an equation should not
+  * appear before all equations defining the variables it depends on are. *)
 let pass_eq_reordering verbose debug ast =
+  (** [pick_equations] takes a list of equations and initialized variables.
+    * it either returns:
+    *  - a list of equations in a correct order
+    *  - nothing *)
   let rec pick_equations init_vars eqs remaining_equations =
     match remaining_equations with
-    | [] -> Some eqs
+    | [] -> (* There are no equations left to order: we are done. *) Some eqs
     | _ ->
       begin
+        (** The filter below provides the equations whose dependencies have
+          * already been defined *)
         match List.filter
                 (fun (patt, expr) ->
                   List.for_all
                     (fun v -> List.mem v init_vars)
                     (vars_of_expr expr))
                 remaining_equations with
-        | [] -> raise (PassExn "[equation ordering] The equations cannot be ordered.")
-        | h :: t ->
-            let init_vars =
+        | [] -> (** There are remaining equations to order, but none whose all
+                  * dependencies have already been defined yet.*)
+          raise (PassExn "[equation ordering] The equations cannot be ordered.")
+        | h :: t -> (** [h :: t] is a list of equations whose dependencies have
+                      * all already been defined. *)
+            let init_vars = (* new set of initialized variables *)
               List.fold_left
                 (fun acc vs ->
-                  acc @ (vars_of_patt (fst vs))) init_vars (h :: t) in
-            pick_equations init_vars (eqs@(h :: t))
-              (List.filter (fun eq -> List.for_all (fun e -> eq <> e) (h :: t)) remaining_equations)
+                  (vars_of_patt (fst vs)) @ acc) init_vars (h :: t) in
+            (** The filter below removes the equation  of [h :: t] to those to
+              * the list of equations be ordered *)
+            pick_equations init_vars (eqs @ (h :: t))
+              (List.filter
+                (fun eq -> List.for_all (fun e -> eq <> e) (h :: t)) remaining_equations)
       end
-    in
+  in
+  (* main function of the (node-)pass. *)
   let node_eq_reorganising  (node: t_node): t_node option =
     let init_vars = List.map name_of_var (snd node.n_inputs) in
     try
@@ -655,7 +674,10 @@ let pass_eq_reordering verbose debug ast =
       end
     with PassExn err -> (verbose err; None)
   in
+  (** iterate the pass over the nodes of the program. *)
   node_pass node_eq_reorganising ast
+
+
 
 let pass_typing verbose debug ast =
   let htbl = Hashtbl.create (List.length ast) in
