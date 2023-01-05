@@ -55,7 +55,7 @@ and t_equation = t_varlist * t_expression
 
 and t_eqlist = t_equation list
 
-and t_state = | State of ident * t_eqlist * t_expression * ident
+and t_state = | State of ident * t_eqlist * (t_expression list) * (ident list)
 
 and t_automaton = t_state * t_state list
 

@@ -852,14 +852,19 @@ let automaton_translation debug automaton =
       in
       List.map aux eqlist
   in
+  let rec next_construct exprs nexts = match exprs, nexts with
+  | [], [] -> EConst([TInt], CInt(1))
+  | e::exprs, n::nexts -> ETriOp([TInt], TOp_if, e, EConst([TInt], CInt(find_state n)), next_construct exprs nexts)
+  | _, _ -> failwith "Automata translation: next construct: should not happen"
+  in
   let state_translation state = 
       match state with
       | State( name, equations, expr, next ) ->
-            let b = create_branch_name name in
-            let eqs = translate_eqlist equations name in
-            let bool_expr = EComp([TBool], COp_eq, EVar([TInt], to_var automat_name TInt), EConst([TInt], CInt(find_state name))) in
-            let next_expr = EWhen([TInt], ETriOp([TInt], TOp_if, expr, EConst([TInt], CInt(find_state next)), EConst([TInt], CInt(1))), EVar([TBool], to_var (get_branch_bool name) TBool)) in
-            (([TBool], [to_var b TBool]), bool_expr)::(([TInt], [to_var (create_next_var name) TInt]), next_expr)::eqs
+        let b = create_branch_name name in
+        let eqs = translate_eqlist equations name in
+        let bool_expr = EComp([TBool], COp_eq, EVar([TInt], to_var automat_name TInt), EConst([TInt], CInt(find_state name))) in
+        let next_expr = EWhen([TInt], next_construct expr next, EVar([TBool], to_var (get_branch_bool name) TBool)) in
+        (([TBool], [to_var b TBool]), bool_expr)::(([TInt], [to_var (create_next_var name) TInt]), next_expr)::eqs
   in
   let rec iter_states states = 
       match states with
@@ -900,6 +905,7 @@ let automaton_translation debug automaton =
   |RVar(_)::q -> TReal::build_type q
   |[] -> []
   in
+
   let init, states = automaton in
   init_state_translation states 1;
   let transition_eq = (([TInt], [IVar(automat_name)]), EBinOp([TInt], BOp_arrow, EConst([TInt], CInt(1)), EMonOp([TInt], MOp_pre, merge_state states))) in

@@ -15,7 +15,8 @@ node auto (i: int) returns (o : int);
 var x, y:int;
 let
     automaton
-    | Incr -> do (o,x) = (0 fby o + 1, 2); done
-    | Decr -> do (o,x) = diagonal_int(0 fby o); done
+    | Incr -> do (o,x) = (0 fby o + 1, 2); until x > 0 then Decr else if x = o then Done
+    | Decr -> do (o,x) = diagonal_int(0 fby o); until x < o then Incr
+	| Done -> do o = pre o; done
 tel
 

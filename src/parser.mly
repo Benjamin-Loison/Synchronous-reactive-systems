@@ -436,13 +436,19 @@ ident_comma_list:
 
 transition:
   | CASE IDENT BO_arrow DO equations DONE { 
-      State($2, $5, EConst([TBool], CBool(true)), $2) }
-  | CASE IDENT BO_arrow DO equations UNTIL expr THEN IDENT {
-      State($2, $5, $7, $9)}
+      State($2, $5, [EConst([TBool], CBool(true))], [$2]) }
+  | CASE IDENT BO_arrow DO equations UNTIL next_list {
+      let (exprs, outs) = $7 in
+      State($2, $5, exprs, outs)}
 ;
 
 transition_list:
   | transition { [$1] }
   | transition transition_list { $1 :: $2 }
   | /* empty */ {raise(MyParsingError("Empty automaton", current_location()))}
+;
+
+next_list:
+  | expr THEN IDENT { [$1], [$3] }
+  | next_list ELSE IF expr THEN IDENT { let (exprs, outs) = $1 in $4::exprs, $6::outs }
 ;

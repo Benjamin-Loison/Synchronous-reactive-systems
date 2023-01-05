@@ -153,14 +153,21 @@ let rec pp_automata fmt: t_automaton list -> unit = function
       pp_translist trans
       pp_automata tail
 
+and pp_nexts fmt: t_expression list * string list -> unit = function
+  | [], [] -> ()
+  | e::exprs, n::nexts -> 
+      Format.fprintf fmt "if %a then %s else %a"
+      pp_expression e
+      n
+      pp_nexts (exprs, nexts)
+
 and pp_translist fmt: t_state list -> unit = function
   | [] -> ()
   | State(name, eqs, cond, next)::q ->
-      Format.fprintf fmt "\t\t\t|%s -> do\n%a\n\t\t\tdone until %a \t\t\tthen %s\n%a"
+      Format.fprintf fmt "\t\t\t|%s -> do\n%a\n\t\t\tdone until %a \n%a"
       name
       pp_equations eqs
-      pp_expression cond
-      next
+      pp_nexts (cond, next)
       pp_translist q
 
 let pp_node fmt node =
