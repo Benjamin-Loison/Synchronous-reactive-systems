@@ -783,10 +783,10 @@ let automaton_translation debug automaton =
 
   let id = create_automaton_id () in
   let automat_name = create_automaton_name id in
-  let new_vars = Hashtbl.create 10 in
-  let var_seen = Hashtbl.create 10 in
-  let var_merged = Hashtbl.create 10 in
-  let state_to_int = Hashtbl.create 10 in
+  let new_vars = Hashtbl.create Config.maxvar in
+  let var_seen = Hashtbl.create Config.maxvar in
+  let var_merged = Hashtbl.create Config.maxvar in
+  let state_to_int = Hashtbl.create Config.maxvar in
   let default_constant ty =
     let defaults ty = match ty with
     | TInt  -> EConst([ty], CInt(0))
@@ -902,7 +902,7 @@ let automaton_translation debug automaton =
   in
   let init, states = automaton in
   init_state_translation states 1;
-  let transition_eq = (([TInt], [IVar(automat_name)]), EBinOp([TInt], BOp_arrow, EConst([TInt], CInt(1)), merge_state states)) in
+  let transition_eq = (([TInt], [IVar(automat_name)]), EBinOp([TInt], BOp_arrow, EConst([TInt], CInt(1)), EMonOp([TInt], MOp_pre, merge_state states))) in
   let state_eqs = (iter_states states) in
   let new_eqs = state_eqs @ (List.flatten (List.map combine_var (List.of_seq (Hashtbl.to_seq_keys var_seen)))) in
   let new_vars = List.map extract_new_var (List.of_seq (Hashtbl.to_seq new_vars)) in
@@ -916,8 +916,9 @@ let automata_translation_pass verbose debug =
                 eqs@eqs_end, (ty@ty_end, vars@vars_end)
     in
     let aux node = 
-        let eqs, vars = iter_automata node.n_automata in
-        Some { node with n_local_vars = vars; n_equations = node.n_equations@eqs}
+        let eqs, (ty, vars) = iter_automata node.n_automata in
+        let (ty_old, vars_old) = node.n_local_vars in
+        Some { node with n_local_vars = (ty@ty_old, vars@vars_old); n_equations = node.n_equations@eqs; n_automata = []}
     in
   node_pass aux
 
