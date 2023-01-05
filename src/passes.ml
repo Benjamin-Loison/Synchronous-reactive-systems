@@ -757,73 +757,14 @@ let check_automata_validity verbos debug =
   in
   node_pass aux
 
-let automaton_translation debug automaton = 
-  let gathered = Hashtbl.create 10 in
+let automaton_translation debug automaton =
+
+  let id = create_automaton_id () in
+  let automat_name = create_automaton_name id in
+  let new_vars = Hashtbl.create 10 in
+  let var_seen = Hashtbl.create 10 in
+  let var_merged = Hashtbl.create 10 in
   let state_to_int = Hashtbl.create 10 in
-  let add_to_table var exp state = 
-    if Hashtbl.mem gathered var then
-      let res = Hashtbl.find gathered var in
-      Hashtbl.replace gathered var ((state, exp)::res);
-    else
-      Hashtbl.replace gathered var ([(state, exp)])
-  in
-  let rec init_state_translation states c = match states with
-  | [] -> ()
-  | State(name, _, _, _)::q -> 
-      Hashtbl.replace state_to_int name c; (init_state_translation q (c+1))
-  in
-
-  let rec find_state name = 
-    match Hashtbl.find_opt state_to_int name with
-    | None -> failwith "Unknown state in automaton"
-    | Some v -> v
-  in
-
-  let rec equation_pass state : t_eqlist -> unit = function
-    | [] -> ()
-    | (vars, exp)::q -> begin
-      add_to_table vars exp state;
-      equation_pass state q
-    end
-  in
-
-  let flatten_state state = match state with
-  | State(name, eq, cond, next) -> 
-    (* Flattening is not possible
-       for example a branch where x,y = 1, 2 will be unpacked
-       when in another branch x, y = f(z) will not be unpacked
-    *)
-    (*
-    let new_equations = List.flatten
-      begin
-      List.map
-        (tpl debug)
-        eq
-      end in
-    *)
-    equation_pass name eq;
-    State(name, eq, cond, next)
-  in
-
-  let rec transition_eq states s = 
-    match states with
-    | [] -> EVar([TInt], IVar(s))
-    | State(name, eqs, cond, next)::q ->
-        let name = find_state name
-        and next = find_state next in
-        ETriOp([TInt], TOp_if, 
-          EBinOp([TBool], BOp_and, 
-            EComp([TBool], COp_eq,
-              EVar([TInt], IVar(s)),
-              EConst([TInt], CInt(name))
-            ),
-            cond
-          ),
-          EConst([TInt], CInt(next)),
-          transition_eq q s
-        )
-    in
-
   let default_constant ty =
     let defaults ty = match ty with
     | TInt  -> EConst([ty], CInt(0))
@@ -836,56 +777,127 @@ let automaton_translation debug automaton =
     | [TReal] -> EConst(ty, CReal(0.0))
     | _ -> ETuple(ty, List.map defaults ty)
   in
-
-  let rec translate_var s v explist ty = match explist with
-  | [] -> default_constant ty
-  | (state, exp)::q -> 
-      ETriOp(Utils.type_exp exp, TOp_if,
-        EComp([TBool], COp_eq, 
-          EVar([TInt], IVar(s)),
-          EConst([TInt], CInt(Hashtbl.find state_to_int state))
-        ),
-        exp,
-        translate_var s v q ty
-      )
+  let get_branch_var var branch = 
+      Format.asprintf "_%s_%s_%d" var branch id in
+  let create_var_name var branch ty = 
+      let s = get_branch_var var branch in
+      Hashtbl.replace new_vars s (var, branch, ty);
+      Hashtbl.add var_seen var (s, branch, ty);
+      s
   in
-
-  let flatten_automaton automaton = 
-    let (init, states) = automaton in
-    (flatten_state init, List.map flatten_state states)
+  let get_branch_bool branch = 
+    Format.asprintf "_b_%s_%d" branch id in
+  let create_branch_name branch = 
+      let s = get_branch_bool branch in
+      Hashtbl.replace new_vars s ("", branch, TBool);
+      s
   in
-  let (init, states) = flatten_automaton automaton in
-  let s = create_automaton_name () in
+  let create_merge_var varname branch ty = 
+      let s = Format.asprintf "_%s_%s_merge_%d" varname branch id in
+      Hashtbl.replace new_vars s (varname, branch, ty);
+      s
+  in
+  let create_next_var branch = 
+      let s = Format.asprintf "_next_%s_%d" branch id in
+      Hashtbl.replace new_vars s ("", branch, TInt);
+      s
+  in
+  let create_type_var_name var branch = match var with
+  | BVar(name) -> create_var_name name branch TBool
+  | IVar(name) -> create_var_name name branch TInt
+  | RVar(name) -> create_var_name name branch TReal
+  in
+  let to_var varname ty = match ty with
+  | TInt  -> IVar(varname)
+  | TBool -> BVar(varname)
+  | TReal -> RVar(varname)
+  in
+  let rec init_state_translation states c = match states with
+  | [] -> ()
+  | State(name, _, _, _)::q -> 
+      Hashtbl.replace state_to_int name c; (init_state_translation q (c+1))
+  in
+  let rec find_state name = 
+    match Hashtbl.find_opt state_to_int name with
+    | None -> failwith "Unknown state in automaton"
+    | Some v -> v
+  in
+  let translate_eqlist eqlist branch = 
+      let aux eq = 
+          let ((ty, vlist), expr ) = eq in 
+            ((ty, List.map2 (fun l ty -> to_var (create_type_var_name l branch) ty ) vlist ty ), 
+                EWhen(type_exp expr, expr, EVar([TBool], to_var (get_branch_bool branch) TBool ))) 
+      in
+      List.map aux eqlist
+  in
+  let state_translation state = 
+      match state with
+      | State( name, equations, expr, next ) ->
+            let b = create_branch_name name in
+            let eqs = translate_eqlist equations name in
+            let bool_expr = EComp([TBool], COp_eq, EVar([TInt], to_var automat_name TInt), EConst([TInt], CInt(find_state name))) in
+            let next_expr = EWhen([TInt], ETriOp([TInt], TOp_if, expr, EConst([TInt], CInt(find_state next)), EConst([TInt], CInt(1))), EVar([TBool], to_var (get_branch_bool name) TBool)) in
+            (([TBool], [to_var b TBool]), bool_expr)::(([TInt], [to_var (create_next_var name) TInt]), next_expr)::eqs
+  in
+  let rec iter_states states = 
+      match states with
+      | [] -> []
+      | s::q -> (state_translation s) @ (iter_states q)
+  in
+  let combine_one_var varname ty = 
+      let default = default_constant [ty] in
+      let rec merge_branches previous branchlist = match branchlist with
+      | [] -> Hashtbl.replace var_merged varname true ; [(([ty], [to_var varname ty]), previous)]
+      | (var, branch, ty2)::q -> 
+              let merge_var = create_merge_var varname branch ty in
+              (([ty], [to_var merge_var ty]), 
+        ETriOp([ty], TOp_merge, EVar([TBool], to_var (get_branch_bool branch) TBool), EVar([ty], to_var var ty), 
+            EWhen([ty], previous, EMonOp([TBool], MOp_not, EVar([TBool], to_var (get_branch_bool branch) TBool))))) 
+              :: ( merge_branches (EVar([ty], to_var merge_var ty2)) q )
+      in
+      let l = Hashtbl.find_all var_seen varname in
+      merge_branches default l
+      
+  in
+  let combine_var varname = 
+      if Hashtbl.mem var_merged varname then [] 
+      else let (_, _, ty) = Hashtbl.find var_seen varname in combine_one_var varname ty
+  in
+  let rec merge_state states = match states with
+  | [] -> EConst([TInt], CInt(1))
+  | State(name, _, _, _)::q -> 
+          let end_state = merge_state q in
+          let bool_var = EVar([TBool], to_var (get_branch_bool name) TBool) in
+          ETriOp([TInt], TOp_merge, bool_var, EVar([TInt], to_var (create_next_var name) TInt),
+            EWhen([TInt], end_state, EMonOp([TBool], MOp_not, bool_var)))
+  in
+  let extract_new_var (varname, (_, _, ty)) = to_var varname ty in
+  let rec build_type varlist = match varlist with
+  |IVar(_)::q -> TInt::build_type q
+  |BVar(_)::q -> TBool::build_type q
+  |RVar(_)::q -> TReal::build_type q
+  |[] -> []
+  in
+  let init, states = automaton in
   init_state_translation states 1;
-  let exp_transition = EBinOp([TInt], BOp_arrow, EConst([TInt], CInt(1)), EMonOp([TInt], MOp_pre, transition_eq states s)) in
-  let new_equations = [(([TInt], [IVar(s)]), exp_transition)] in
-  Hashtbl.fold (fun var explist acc -> (var, translate_var s var explist (fst var))::acc) gathered new_equations, IVar(s)
-
-
-let automata_trans_pass debug (node:t_node) : t_node option=
-
-  let rec aux automaton = match automaton with
-  | [] -> [], [], []
-  | a::q -> 
-      let eq, var = automaton_translation debug a
-      and tail_eq, tail_var, tail_type = aux q in
-      eq@tail_eq, var::tail_var, TInt::tail_type
-  in
-
-  let eqs, vars, new_ty = aux node.n_automata in
-  let ty, loc_vars = node.n_local_vars in
-  Some
-    {
-      n_name = node.n_name;
-      n_inputs = node.n_inputs;
-      n_outputs = node.n_outputs;
-      n_local_vars = (new_ty@ty, vars@loc_vars);
-      n_equations = eqs@node.n_equations;
-      n_automata = []; (* not needed anymore *)
-    }
+  let transition_eq = (([TInt], [IVar(automat_name)]), EBinOp([TInt], BOp_arrow, EConst([TInt], CInt(1)), merge_state states)) in
+  let state_eqs = (iter_states states) in
+  let new_eqs = state_eqs @ (List.flatten (List.map combine_var (List.of_seq (Hashtbl.to_seq_keys var_seen)))) in
+  let new_vars = List.map extract_new_var (List.of_seq (Hashtbl.to_seq new_vars)) in
+  (transition_eq)::new_eqs, (TInt::(build_type new_vars), IVar(automat_name)::new_vars)
 
 let automata_translation_pass verbose debug = 
-  node_pass (automata_trans_pass debug)
+    let rec iter_automata autolist = match autolist with
+    | [] -> [], ([], [])
+    | a::q -> let (eqs, (ty, vars)) = automaton_translation debug a in
+                let (eqs_end, (ty_end, vars_end)) = iter_automata q in
+                eqs@eqs_end, (ty@ty_end, vars@vars_end)
+    in
+    let aux node = 
+        let eqs, vars = iter_automata node.n_automata in
+        Some { node with n_local_vars = vars; n_equations = node.n_equations@eqs}
+    in
+  node_pass aux
 
 let clock_unification_pass verbose debug ast = 
 

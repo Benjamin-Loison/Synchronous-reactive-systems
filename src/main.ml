@@ -44,7 +44,7 @@ let exec_passes ast verbose debug passes f =
 let _ =
   (** Usage and argument parsing. *)
   let default_passes =
-    ["linearization_reset"; "remove_if";
+      ["linearization_reset"; "automata_translation"; "remove_if";
       "linearization_pre"; "linearization_tuples"; "linearization_app";
       "ensure_assign_val";
       "equations_ordering"] in

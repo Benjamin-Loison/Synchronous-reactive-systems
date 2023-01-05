@@ -33,6 +33,9 @@ let expression_pass f: t_nodelist -> t_nodelist option =
 exception PassExn of string
 
 let counter = ref 0
-let create_automaton_name : unit -> string = fun () ->
+let create_automaton_id : unit -> int = fun () ->
     counter := !counter + 1;
-    Format.asprintf "_s%d" (!counter)
+    !counter
+
+let create_automaton_name id = 
+    Format.asprintf "_s%d" (id)
