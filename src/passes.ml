@@ -657,7 +657,7 @@ let pass_eq_reordering verbose debug ast =
                 (fun acc vs ->
                   (vars_of_patt (fst vs)) @ acc) init_vars (h :: t) in
             (** The filter below removes the equation  of [h :: t] to those to
-              * the list of equations be ordered *)
+              * the list of equations to be ordered *)
             pick_equations init_vars (eqs @ (h :: t))
               (List.filter
                 (fun eq -> List.for_all (fun e -> eq <> e) (h :: t)) remaining_equations)
