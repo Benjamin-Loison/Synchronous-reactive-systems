@@ -40,7 +40,8 @@ let exec_passes ast verbose debug passes f =
 let _ =
   (** Usage and argument parsing. *)
   let default_passes =
-      ["linearization_reset"; "automata_translation"; "remove_if";
+    ["linearization_reset"; "automata_translation"; "remove_if";
+      "linearization_merge";
       "linearization_pre"; "linearization_tuples"; "linearization_app";
       "ensure_assign_val";
       "equations_ordering";
@@ -82,6 +83,7 @@ let _ =
   List.iter (fun (s, k) -> Hashtbl.add passes_table s k)
     [
       ("remove_if", Passes.pass_if_removal);
+      ("linearization_merge", Passes.pass_merge_lin);
       ("linearization_tuples", Passes.pass_linearization_tuples);
       ("linearization_app", Passes.pass_linearization_app);
       ("linearization_pre", Passes.pass_linearization_pre);
