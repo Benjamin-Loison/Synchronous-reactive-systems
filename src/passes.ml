@@ -749,7 +749,7 @@ let pass_typing verbose debug ast =
           else None
   in aux ast
 
-let check_automata_validity verbos debug = 
+let check_automata_validity verbose debug = 
   let check_automaton_branch_vars automaton = 
     let (init, states) = automaton in
     let left_side = Hashtbl.create 10 in
@@ -774,8 +774,11 @@ let check_automata_validity verbos debug =
     end
   in
   let aux node = 
+    try
     List.iter check_automaton_branch_vars node.n_automata;
     Some node
+    with
+    | PassExn err -> (verbose err; None)
   in
   node_pass aux
 
@@ -922,9 +925,12 @@ let automata_translation_pass verbose debug =
                 eqs@eqs_end, (ty@ty_end, vars@vars_end)
     in
     let aux node = 
-        let eqs, (ty, vars) = iter_automata node.n_automata in
-        let (ty_old, vars_old) = node.n_local_vars in
-        Some { node with n_local_vars = (ty@ty_old, vars@vars_old); n_equations = node.n_equations@eqs; n_automata = []}
+        try
+            let eqs, (ty, vars) = iter_automata node.n_automata in
+            let (ty_old, vars_old) = node.n_local_vars in
+            Some { node with n_local_vars = (ty@ty_old, vars@vars_old); n_equations = node.n_equations@eqs; n_automata = []}
+        with
+        |PassExn err -> (verbose err; None)
     in
   node_pass aux
 
@@ -1060,9 +1066,14 @@ let clock_unification_pass verbose debug ast =
         snd n.n_local_vars); (* Initializing local variables to Unknown clock *)
       List.iter (fun v -> Hashtbl.replace known_clocks v Base) (
         snd n.n_outputs); (* Initializing outputs to base clock *)
-      iter_til_stable n.n_equations;
-      (* catch potential errors and test for unification *)
-      check_unification n;
-      Some n
+      try
+        begin
+          iter_til_stable n.n_equations;
+          (* catch potential errors and test for unification *)
+          check_unification n;
+          Some n
+        end
+      with
+      | PassExn err -> (verbose err; None)
     end
   in node_pass compute_clock_node ast
