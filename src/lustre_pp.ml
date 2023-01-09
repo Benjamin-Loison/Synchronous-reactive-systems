@@ -160,6 +160,7 @@ and pp_nexts fmt: t_expression list * string list -> unit = function
       pp_expression e
       n
       pp_nexts (exprs, nexts)
+  | _, _ -> () (*This should never happen*)
 
 and pp_translist fmt: t_state list -> unit = function
   | [] -> ()
