@@ -1121,14 +1121,15 @@ let clock_unification_pass verbose debug ast =
     | EVar([TBool], var) -> acc, e
     | EConst([TBool], cons) -> acc, e
     | EMonOp([TBool], MOp_not, e) -> count_not e (acc + 1)
-    | _ -> raise (PassExn "verify_when failure")
+    | EComp(_, _, e1, e2) -> acc, e
+    | _ -> raise (PassExn "count_not failure")
   in
 
   let verify_when e1 e2 =
       let n1, var1 = count_not e1 0
       and n2, var2 = count_not e2 0 in
       if n1 mod 2 <> n2 mod 2 || var1 <> var2 then
-          raise (PassExn "clock unification failure")
+          raise (PassExn "verify_when failure")
   in
 
   let get_var_name var = match var with
@@ -1243,14 +1244,9 @@ let clock_unification_pass verbose debug ast =
         snd n.n_local_vars); (* Initializing local variables to Unknown clock *)
       List.iter (fun v -> Hashtbl.replace known_clocks v Base) (
         snd n.n_outputs); (* Initializing outputs to base clock *)
-      try
-        begin
           iter_til_stable n.n_equations;
           (* catch potential errors and test for unification *)
           check_unification n;
           Some n
-        end
-      with
-      | PassExn err -> (verbose err; None)
     end
   in node_pass compute_clock_node ast
