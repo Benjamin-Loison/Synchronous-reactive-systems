@@ -95,7 +95,7 @@ let cp_state_frees fmt (iprog, sts) =
         then
           Format.fprintf fmt "\tif (st->aux_states[%d]) {\n\
             \t\tfree_state_%s((t_state_%s*)(st->aux_states[%d]));\n\
-            \t\tfree (st->aux_state[%d]);\n\t}\n%a"
+            \t\tfree (st->aux_states[%d]);\n\t}\n%a"
             idx callee_name callee_name idx
             idx cp_free_aux (i+1, caller_name)
         else Format.fprintf fmt "\tif (st->aux_states[%d])\n\
