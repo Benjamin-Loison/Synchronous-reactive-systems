@@ -1121,8 +1121,7 @@ let clock_unification_pass verbose debug ast =
     | EVar([TBool], var) -> acc, e
     | EConst([TBool], cons) -> acc, e
     | EMonOp([TBool], MOp_not, e) -> count_not e (acc + 1)
-    | EComp(_, _, e1, e2) -> acc, e
-    | _ -> raise (PassExn "count_not failure")
+    | _ -> acc, e
   in
 
   let verify_when e1 e2 =
