@@ -41,7 +41,7 @@ let _ =
   (** Usage and argument parsing. *)
   let default_passes =
     ["linearization_reset"; "automata_translation"; "remove_if";
-      "linearization_merge";
+      "linearization_merge"; "linearization_when";
       "linearization_pre"; "linearization_tuples"; "linearization_app";
       "ensure_assign_val";
       "equations_ordering";
@@ -84,6 +84,7 @@ let _ =
     [
       ("remove_if", Passes.pass_if_removal);
       ("linearization_merge", Passes.pass_merge_lin);
+      ("linearization_when", Passes.pass_when_lin);
       ("linearization_tuples", Passes.pass_linearization_tuples);
       ("linearization_app", Passes.pass_linearization_app);
       ("linearization_pre", Passes.pass_linearization_pre);

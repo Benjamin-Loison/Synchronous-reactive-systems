@@ -6,9 +6,101 @@ open Utils
 
 
 
+(** [pass_when_lin] linearises the when construct so that it only appears as
+  * main construction of right members of equations. *)
+let pass_when_lin verbose debug =
+  (* prefix of the fresh variables to use and counter to make them unique. *)
+  let varname_prefix = "_whenlin" in
+  let count = ref 0 in
+  (** Auxiliary function that linearises an expression. *)
+  let rec aux_expr vars expr toplevel conds =
+    match expr with
+    | EVar _ | EConst _ -> [], vars, expr
+    | EMonOp (t, op, e) ->
+      let eqs, vars, e = aux_expr vars e false conds in
+      eqs, vars, EMonOp (t, op, e)
+    | EBinOp (t, op, e, e') ->
+      let eqs, vars, e = aux_expr vars e false conds in
+      let eqs', vars, e' = aux_expr vars e' false conds in
+      eqs'@eqs, vars, EBinOp (t, op, e, e')
+    | EComp (t, op, e, e') ->
+      let eqs, vars, e = aux_expr vars e false conds in
+      let eqs', vars, e' = aux_expr vars e' false conds in
+      eqs'@eqs, vars, EComp (t, op, e, e')
+    | EReset (t, e, e') ->
+      let eqs, vars, e = aux_expr vars e false conds in
+      let eqs', vars, e' = aux_expr vars e' false conds in
+      eqs'@eqs, vars, EReset (t, e, e')
+    | ETuple (t, l) ->
+      let eqs, vars, l = List.fold_right
+        (fun e (eqs, vars, l) ->
+          let eqs', vars, e = aux_expr vars e false conds in
+          eqs' @ eqs, vars, (e :: l))
+        l ([], vars, []) in
+      eqs, vars, ETuple (t, l)
+    | EApp (t, n, e) ->
+      let eqs, vars, e = aux_expr vars e false conds in
+      eqs, vars, EApp (t, n, e)
+    | ETriOp (t, op, e, e', e'') ->
+      let eqs, vars, e = aux_expr vars e false conds in
+      let eqs', vars, e' = aux_expr vars e' false conds in
+      let eqs'', vars, e'' = aux_expr vars e'' false conds in
+      eqs''@eqs'@eqs, vars, ETriOp (t, op, e, e', e'')
+    | EWhen (t, e, e') ->
+      let eqs, vars, e = aux_expr vars e false conds in
+      let eqs', vars, e' = aux_expr vars e' false (e :: conds) in
+      let e =
+        List.fold_left
+          (fun e e' -> EBinOp ([TBool], BOp_and, e,e'))
+          e conds
+      in
+      if toplevel
+        then
+          eqs'@eqs, vars, EWhen (t, e, e')
+        else
+          begin
+            if List.length t = 1
+              then
+                begin
+                let newvar = Format.sprintf "%s%d" varname_prefix !count in
+                let newvar =
+                  match List.hd t with
+                  | TInt -> IVar newvar
+                  | TBool -> BVar newvar
+                  | TReal -> RVar newvar
+                  in
+                let () = incr count in
+                let vars = (t @ (fst vars), newvar :: (snd vars)) in
+                ((t, [newvar]), EWhen (t, e, e')) :: eqs'@eqs, vars, EVar (t, newvar)
+                end
+              else
+                  raise (PassExn "When should only happened on unary expressions.")
+          end
+  in
+  (** For each node: *)
+  let aux_when_lin node =
+    (** Loop on equations to get additional equations and variables. *)
+    let eqs, vars =
+      List.fold_left
+        (fun (eqs, vars) (patt, expr) ->
+          let eqs', vars, expr = aux_expr vars expr true [] in
+          (patt, expr) :: eqs' @ eqs, vars)
+        ([], node.n_local_vars) node.n_equations
+      in
+    Some { node with n_local_vars = vars; n_equations = eqs }
+  in
+  node_pass aux_when_lin
+
+
+
+(** [pass_merge_lin] linearises ther merges so that they only appear as main
+  * construct of right sides of equations.
+  * This simplifies their handling in next passes and in the C printer. *)
 let pass_merge_lin verbose debug =
+  (* prefix of the fresh variables to use and counter to make them unique. *)
   let varname_prefix = "_mergelin" in
   let count = ref 0 in
+  (** Auxiliary function that linearises an expression. *)
   let rec aux_expr vars expr toplevel =
     match expr with
     | EVar _ | EConst _ -> [], vars, expr
@@ -75,7 +167,9 @@ let pass_merge_lin verbose debug =
             end
       end
   in
+  (** For each node: *)
   let aux_merge_lin node =
+    (** Loop on equations to get additional equations and variables. *)
     let eqs, vars =
       List.fold_left
         (fun (eqs, vars) (patt, expr) ->
@@ -236,7 +330,7 @@ let pass_if_removal verbose debug =
   * This is required, since the reset construct is translated into resetting the
   * function state in the final C code. *)
 let pass_linearization_reset verbose debug =
-  (** [node_lin] linearizes a single node. *)
+  (** [node_lin] linearises a single node. *)
   let node_lin (node: t_node): t_node option =
     (** [reset_aux_expression] takes an expression and returns:
       *   - a list of additional equations
@@ -305,7 +399,7 @@ let pass_linearization_reset verbose debug =
   * This is required, since the pre construct is translated into a variable in
   * the final C code. *)
 let pass_linearization_pre verbose debug =
-  (** [node_lin] linearizes a single node. *)
+  (** [node_lin] linearises a single node. *)
   let node_lin (node: t_node): t_node option =
     (** [pre_aux_expression] takes an expression and returns:
       *   - a list of additional equations
