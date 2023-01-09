@@ -25,8 +25,6 @@ let exec_passes ast verbose debug passes f =
     | [] ->  f ast
     | (n, p) :: passes ->
         verbose (Format.asprintf "Executing pass %s:\n" n);
-        try
-        begin
           match p verbose debug ast with
           | None -> (exit_error ("Error while in the pass "^n^".\n"); exit 0)
           | Some ast -> (
@@ -34,8 +32,6 @@ let exec_passes ast verbose debug passes f =
               (Format.asprintf
                 "Current AST (after %s):\n%a\n" n Lustre_pp.pp_ast ast);
             aux ast passes)
-        end with
-        | _ -> failwith ("The pass "^n^" should have caught me!")
   in
   aux ast passes
 
@@ -47,7 +43,7 @@ let _ =
       ["linearization_reset"; "automata_translation"; "remove_if";
       "linearization_pre"; "linearization_tuples"; "linearization_app";
       "ensure_assign_val";
-      "equations_ordering"] in
+      "equations_ordering"; "clock_unification"] in
   let sanity_passes = ["sanity_pass_assignment_unicity"; "check_typing"] in
   let usage_msg =
     "Usage: main [-passes p1,...,pn] [-ast] [-verbose] [-debug] \
