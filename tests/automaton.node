@@ -11,7 +11,7 @@ let
     o = (not (not (l1 = l2))) and (l1 = l2) and true;
 tel
 
-node auto (i: int) returns (o : int);
+node main (i: int) returns (o : int);
 var x, y:int;
 let
     automaton
