@@ -19,6 +19,7 @@ tel
 node test (u, v: int; c: bool) returns (o: int);
 var x, y: int; b: bool;
 let
-	o = 2 * (merge c u v);
+	x = merge c u v;
+	o = 2 * x;
 tel
 

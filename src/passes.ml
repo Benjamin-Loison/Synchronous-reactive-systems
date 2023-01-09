@@ -244,7 +244,7 @@ let pass_linearization_pre verbose debug =
                           | [TInt]  -> IVar nvar
                           | [TBool] -> BVar nvar
                           | [TReal] -> RVar nvar
-                          | _ -> failwith "Should not happened." in
+                          | _ -> failwith "Should not happened. (pass_linearization_pre)" in
               let neq_patt: t_varlist = (t, [nvar]) in
               let neq_expr: t_expression = e in
               let vars = varlist_concat (t, [nvar]) vars in
@@ -930,8 +930,6 @@ let automata_translation_pass verbose debug =
 
 let clock_unification_pass verbose debug ast = 
 
-  let failure str = raise (PassExn ("Failed to unify clocks: "^str)) in
-    
   let known_clocks = Hashtbl.create 100 in
   let used = Hashtbl.create 100 in (*keep track of variables that appear on right side of equation*)
   let changed = ref false in
@@ -1042,6 +1040,7 @@ let clock_unification_pass verbose debug ast =
             | EConst(_, _) -> ()
             | EVar(_, var) -> if not (List.mem var node_inputs) then raise (PassExn "Clock unification failure: input clock depends on non input clock")
                 else check_inputs q
+            | _ -> failwith "Should not happen. (clock_unification)"
             end
         | _ -> check_inputs q
     in

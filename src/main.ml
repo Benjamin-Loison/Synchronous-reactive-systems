@@ -43,7 +43,8 @@ let _ =
       ["linearization_reset"; "automata_translation"; "remove_if";
       "linearization_pre"; "linearization_tuples"; "linearization_app";
       "ensure_assign_val";
-      "equations_ordering"; "clock_unification"] in
+      "equations_ordering";
+      "clock_unification"] in
   let sanity_passes = ["sanity_pass_assignment_unicity"; "check_typing"] in
   let usage_msg =
     "Usage: main [-passes p1,...,pn] [-ast] [-verbose] [-debug] \
