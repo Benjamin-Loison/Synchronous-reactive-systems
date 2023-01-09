@@ -6,13 +6,13 @@ open Utils
 
 
 
-(** [pass_when_lin] linearises the when construct so that it only appears as
+(** [pass_when_lin] linearizes the when construct so that it only appears as
   * main construction of right members of equations. *)
 let pass_when_lin verbose debug =
   (* prefix of the fresh variables to use and counter to make them unique. *)
   let varname_prefix = "_whenlin" in
   let count = ref 0 in
-  (** Auxiliary function that linearises an expression. *)
+  (** Auxiliary function that linearizes an expression. *)
   let rec aux_expr vars expr toplevel conds =
     match expr with
     | EVar _ | EConst _ -> [], vars, expr
@@ -74,7 +74,7 @@ let pass_when_lin verbose debug =
                 ((t, [newvar]), EWhen (t, e, e')) :: eqs'@eqs, vars, EVar (t, newvar)
                 end
               else
-                  raise (PassExn "When should only happened on unary expressions.")
+                  raise (PassExn "When should only happen on unary expressions.")
           end
   in
   (** For each node: *)
@@ -93,14 +93,14 @@ let pass_when_lin verbose debug =
 
 
 
-(** [pass_merge_lin] linearises ther merges so that they only appear as main
+(** [pass_merge_lin] linearizes the merges so that they only appear as main
   * construct of right sides of equations.
   * This simplifies their handling in next passes and in the C printer. *)
 let pass_merge_lin verbose debug =
   (* prefix of the fresh variables to use and counter to make them unique. *)
   let varname_prefix = "_mergelin" in
   let count = ref 0 in
-  (** Auxiliary function that linearises an expression. *)
+  (** Auxiliary function that linearizes an expression. *)
   let rec aux_expr vars expr toplevel =
     match expr with
     | EVar _ | EConst _ -> [], vars, expr
@@ -163,7 +163,7 @@ let pass_merge_lin verbose debug =
                 let eqs'', vars, e' = aux_expr vars e' false in
                 ((t, [newvar]), ETriOp (t, TOp_merge, c, e, e')) :: eqs @ eqs' @ eqs'', vars, EVar (t, newvar)
               else
-                raise (PassExn "Merges should only happened on unary expressions.")
+                raise (PassExn "Merges should only happen on unary expressions.")
             end
       end
   in
@@ -330,7 +330,7 @@ let pass_if_removal verbose debug =
   * This is required, since the reset construct is translated into resetting the
   * function state in the final C code. *)
 let pass_linearization_reset verbose debug =
-  (** [node_lin] linearises a single node. *)
+  (** [node_lin] linearizes a single node. *)
   let node_lin (node: t_node): t_node option =
     (** [reset_aux_expression] takes an expression and returns:
       *   - a list of additional equations
@@ -399,7 +399,7 @@ let pass_linearization_reset verbose debug =
   * This is required, since the pre construct is translated into a variable in
   * the final C code. *)
 let pass_linearization_pre verbose debug =
-  (** [node_lin] linearises a single node. *)
+  (** [node_lin] linearizes a single node. *)
   let node_lin (node: t_node): t_node option =
     (** [pre_aux_expression] takes an expression and returns:
       *   - a list of additional equations
